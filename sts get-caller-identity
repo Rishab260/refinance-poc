@@ -1,0 +1,21 @@
+{
+    "Role": {
+        "Path": "/",
+        "RoleName": "RefiReadyEntityResolutionRole",
+        "RoleId": "AROA4X2HTVVACHSDXPRZ6",
+        "Arn": "arn:aws:iam::875786644800:role/RefiReadyEntityResolutionRole",
+        "CreateDate": "2026-02-20T14:20:56+00:00",
+        "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": "entityresolution.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+    }
+}
