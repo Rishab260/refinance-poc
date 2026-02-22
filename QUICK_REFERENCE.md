@@ -74,6 +74,20 @@ Query Results ──→ refi-ready-audience.csv
                      - Call center systems
 ```
 
+### PHASE 5: DATA VISUALIZATION (OPTIONAL)
+**What**: Interactive dashboards and business intelligence
+**Why**: Visual insights for stakeholders
+**AWS Service**: AWS QuickSight
+**Time**: ~5 minutes setup + instant dashboard access
+```
+Athena View ──→ QuickSight Data Source ──→ Interactive Dashboard
+                     ↓                           ↓
+              unified_refi_dataset         - KPIs (Total borrowers, savings)
+                                          - Charts (by category, engagement)
+                                          - Filters (LTV, rate spread)
+                                          - Export/Share capabilities
+```
+
 ---
 
 ## Data Flow: Linking Borrowers

@@ -151,6 +151,44 @@ def main():
     logging.info("  - S3 bucket: refi-ready-poc-dev")
     logging.info("  - Glue database: refi_ready_db")
     logging.info("  - Athena query results")
+    
+    # Prompt for QuickSight setup
+    print("\n" + "="*80)
+    print("DATA VISUALIZATION WITH AWS QUICKSIGHT")
+    print("="*80)
+    print("\nWould you like to set up AWS QuickSight for data visualization?")
+    print("QuickSight provides interactive dashboards to explore refinance opportunities.")
+    print("\nOptions:")
+    print("  1. Set up QuickSight now")
+    print("  2. Skip (you can run 'python scripts/setup_quicksight.py' later)")
+    print("\nNote: QuickSight requires a subscription (~$9-18/month per user)")
+    
+    try:
+        choice = input("\nEnter your choice (1 or 2): ").strip()
+        
+        if choice == '1':
+            logging.info("\n" + "="*80)
+            logging.info("STEP 3: QUICKSIGHT SETUP")
+            logging.info("="*80)
+            
+            cmd = ['python', 'scripts/setup_quicksight.py']
+            logging.info(f"Running: {' '.join(cmd)}")
+            result = subprocess.run(cmd)
+            
+            if result.returncode == 0:
+                logging.info("✓ QuickSight setup completed")
+            else:
+                logging.warning("QuickSight setup encountered issues. See output above.")
+        else:
+            logging.info("\nSkipping QuickSight setup.")
+            logging.info("To set up later, run: python scripts/setup_quicksight.py")
+            logging.info("Documentation: QUICKSIGHT_SETUP.md")
+    except KeyboardInterrupt:
+        logging.info("\n\nQuickSight setup skipped.")
+    
+    print("\n" + "="*80)
+    print("ALL DONE!")
+    print("="*80)
 
 if __name__ == "__main__":
     main()

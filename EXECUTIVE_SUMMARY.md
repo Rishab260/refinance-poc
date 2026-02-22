@@ -97,7 +97,7 @@ B001,John,Doe,5.5%,4.0%,250,true,...
 
 ### Where Entity Resolution Fits
 
-Entity Resolution can run a rules-based match job on the borrower information file (email + phone) to produce a resolved output in S3. In the current POC, Athena joins still reference the raw tables; the resolved output is available for future integration if you want to de-duplicate or cluster identities before joining.
+Entity Resolution is currently used to run a rules-based matching workflow on the borrower information file (email + phone) and write a resolved output back to S3. The matching job is executed as part of the pipeline run, but the Athena joins still reference the raw tables. This means the POC validates the Entity Resolution workflow end-to-end while keeping the analytics logic stable; the resolved output is available for future integration if you want to de-duplicate or cluster identities before joining.
 
 ### Why This Approach Works
 - ✓ **Scalable**: Handles 31 borrowers to millions

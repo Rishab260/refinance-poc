@@ -58,6 +58,45 @@
         "logs:PutLogEvents"
       ],
       "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "quicksight:DescribeAccountSubscription",
+        "quicksight:CreateAccountSubscription",
+        "quicksight:DescribeUser",
+        "quicksight:ListUsers",
+        "quicksight:CreateDataSource",
+        "quicksight:DescribeDataSource",
+        "quicksight:UpdateDataSource",
+        "quicksight:DeleteDataSource",
+        "quicksight:PassDataSource",
+        "quicksight:DescribeDataSourcePermissions",
+        "quicksight:UpdateDataSourcePermissions",
+        "quicksight:CreateDataSet",
+        "quicksight:DescribeDataSet",
+        "quicksight:UpdateDataSet",
+        "quicksight:DeleteDataSet",
+        "quicksight:PassDataSet",
+        "quicksight:DescribeDataSetPermissions",
+        "quicksight:UpdateDataSetPermissions",
+        "quicksight:ListDataSets",
+        "quicksight:CreateAnalysis",
+        "quicksight:DescribeAnalysis",
+        "quicksight:ListAnalyses",
+        "quicksight:CreateDashboard",
+        "quicksight:DescribeDashboard",
+        "quicksight:ListDashboards"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketPolicy",
+        "s3:PutBucketPolicy"
+      ],
+      "Resource": "arn:aws:s3:::refi-ready-poc-*"
     }
   ]
 }

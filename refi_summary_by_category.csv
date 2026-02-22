@@ -1,0 +1,5 @@
+,borrower_id,monthly_savings_est,monthly_savings_est,rate_spread,ltv_ratio,engagement_score
+,count,sum,mean,mean,mean,mean
+marketing_category,,,,,,
+Hot Lead,4,860,215.0,1.12,79.25,3.0
+Immediate Action,6,1270,211.67,1.32,77.33,3.0

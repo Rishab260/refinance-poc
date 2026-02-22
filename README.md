@@ -2,10 +2,23 @@
 
 This project is a Proof-of-Concept for a serverless data pipeline on AWS to identify refinance opportunities.
 
+## 🎯 Current Status: FULLY OPERATIONAL ✅
+
+- ✅ **Data Pipeline:** Successfully processing 51 borrowers
+- ✅ **S3 Storage:** All CSV files uploaded and ready
+- ✅ **Entity Resolution:** Configured and integrated
+- ✅ **Data Analysis:** 10 refinance-eligible borrowers identified
+- ✅ **Visualization:** Jupyter dashboard ready with interactive plots
+- 🚀 **Quick Start:** Run `bash launch_dashboard.sh` to view results!
+
 ## Architecture Diagram
 
 ```
 [S3 Raw Zone] -> [AWS Entity Resolution] -> [S3 Resolved Zone] -> [AWS Glue Crawler] -> [Glue Data Catalog] -> [Amazon Athena] -> [S3 Output Zone]
+                                                                                                                       ↓
+                                                                                                            [Jupyter Dashboard (FREE)]
+                                                                                                                       or
+                                                                                                            [AWS QuickSight ($19/mo)]
 ```
 
 ## Setup Instructions
@@ -30,6 +43,55 @@ This project is a Proof-of-Concept for a serverless data pipeline on AWS to iden
     *   ```bash
         python scripts/run_pipeline.py
         ```
+
+5.  **Visualize Data (Choose Your Option):**
+
+    **Option A: Jupyter Notebook (FREE) ⭐ Recommended**
+    ```bash
+    jupyter notebook
+    # Open refi_dashboard.ipynb and run all cells
+    ```
+    - ✅ Completely free
+    - ✅ Interactive visualizations with Plotly
+    - ✅ Export to HTML, CSV, or share anywhere
+    - ✅ Full customization with Python
+    - 📖 See [JUPYTER_NOTEBOOK_GUIDE.md](JUPYTER_NOTEBOOK_GUIDE.md)
+    
+    **Option B: AWS QuickSight (~$19/month)**
+    ```bash
+    python scripts/setup_quicksight.py
+    ```
+    - ✅ Professional cloud-based BI tool
+    - ✅ Share dashboards with AWS users
+    - ✅ Mobile app access
+    - 💰 Requires subscription ($9-18/user/month)
+    - 📖 See [QUICKSIGHT_SETUP.md](QUICKSIGHT_SETUP.md)
+
+## Quick Start (All-in-One)
+
+For a streamlined setup, use the main orchestration script:
+
+```bash
+python run_poc.py
+```
+
+This will:
+- ✓ Check AWS credentials and IAM roles
+- ✓ Set up all infrastructure
+- ✓ Run the complete data pipeline
+- ✓ Generate refinance-ready borrower output
+
+## Data Visualization with QuickSight
+
+After running the pipeline, you can visualize the results using AWS QuickSight:
+
+1. Run the QuickSight setup: `python scripts/setup_quicksight.py`
+2. Follow instructions to create interactive dashboards
+3. See [QUICKSIGHT_SETUP.md](QUICKSIGHT_SETUP.md) for:
+   - Subscription setup
+   - Dashboard templates
+   - Visualization recommendations
+   - Cost estimates
 
 ## IAM Permissions Required
 
