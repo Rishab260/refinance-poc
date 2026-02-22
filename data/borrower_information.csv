@@ -1,0 +1,52 @@
+borrower_id,first_name,last_name,email,phone,property_id,city,state,credit_score
+1,John,Smith,john.smith@example.com,555-0101,101,Anytown,CA,750
+2,Jane,Doe,jane.doe@example.com,555-0102,102,Anytown,CA,800
+3,Peter,Jones,peter.jones@example.com,555-0103,103,Smallville,KS,650
+4,Mary,Johnson,mary.johnson@example.com,555-0104,104,Smallville,KS,720
+5,David,Williams,david.williams@example.com,555-0105,105,Metropolis,NY,780
+6,Susan,Brown,susan.brown@example.com,555-0106,106,Metropolis,NY,690
+7,Michael,Davis,michael.davis@example.com,555-0107,107,Gotham,NJ,820
+8,Patricia,Miller,patricia.miller@example.com,555-0108,108,Gotham,NJ,710
+9,Robert,Wilson,robert.wilson@example.com,555-0109,109,Star City,WA,790
+10,Jennifer,Moore,jennifer.moore@example.com,555-0110,110,Star City,WA,680
+11,James,Taylor,james.taylor@example.com,555-0111,111,Central City,MO,760
+12,Linda,Anderson,linda.anderson@example.com,555-0112,112,Central City,MO,730
+13,William,Thomas,william.thomas@example.com,555-0113,113,Coast City,CA,810
+14,Elizabeth,Jackson,elizabeth.jackson@example.com,555-0114,114,Coast City,CA,700
+15,Richard,White,richard.white@example.com,555-0115,115,Fawcett City,OH,770
+16,Barbara,Harris,barbara.harris@example.com,555-0116,116,Fawcett City,OH,740
+17,Charles,Martin,charles.martin@example.com,555-0117,117,Bludhaven,DE,660
+18,Jessica,Thompson,jessica.thompson@example.com,555-0118,118,Bludhaven,DE,830
+19,Joseph,Garcia,joseph.garcia@example.com,555-0119,119,Opal City,MD,690
+20,Sarah,Martinez,sarah.martinez@example.com,555-0120,120,Opal City,MD,780
+21,Thomas,Robinson,thomas.robinson@example.com,555-0121,121,Happy Harbor,RI,720
+22,Nancy,Clark,nancy.clark@example.com,555-0122,122,Happy Harbor,RI,800
+23,Daniel,Rodriguez,daniel.rodriguez@example.com,555-0123,123,Ivy Town,CT,670
+24,Karen,Lewis,karen.lewis@example.com,555-0124,124,Ivy Town,CT,790
+25,Matthew,Lee,matthew.lee@example.com,555-0125,125,Hub City,IL,750
+26,Lisa,Walker,lisa.walker@example.com,555-0126,126,Hub City,IL,710
+27,Donald,Hall,donald.hall@example.com,555-0127,127,Gateway City,NV,840
+28,Betty,Allen,betty.allen@example.com,555-0128,128,Gateway City,NV,680
+29,Anthony,Young,anthony.young@example.com,555-0129,129,Midway City,MI,760
+30,Sandra,Hernandez,sandra.hernandez@example.com,555-0130,130,Midway City,MI,730
+31,Mark,King,mark.king@example.com,555-0131,131,Keystone City,PA,810
+32,Ashley,Wright,ashley.wright@example.com,555-0132,132,Keystone City,PA,700
+33,Steven,Lopez,steven.lopez@example.com,555-0133,133,Monument Point,DC,770
+34,Kimberly,Hill,kimberly.hill@example.com,555-0134,134,Monument Point,DC,740
+35,Paul,Scott,paul.scott@example.com,555-0135,135,Dos Rios,TX,660
+36,Emily,Green,emily.green@example.com,555-0136,136,Dos Rios,TX,830
+37,Andrew,Adams,andrew.adams@example.com,555-0137,137,Elmond,OR,690
+38,Donna,Baker,donna.baker@example.com,555-0138,138,Elmond,OR,780
+39,Joshua,Gonzalez,joshua.gonzalez@example.com,555-0139,139,Calvin City,UT,720
+40,Cynthia,Nelson,cynthia.nelson@example.com,555-0140,140,Calvin City,UT,800
+41,Kevin,Carter,kevin.carter@example.com,555-0141,141,Portsmouth,VA,670
+42,Melissa,Mitchell,melissa.mitchell@example.com,555-0142,142,Portsmouth,VA,790
+43,Brian,Perez,brian.perez@example.com,555-0143,143,Platinum Flats,AZ,750
+44,Deborah,Roberts,deborah.roberts@example.com,555-0144,144,Platinum Flats,AZ,710
+45,George,Turner,george.turner@example.com,555-0145,145,St. Roch,LA,840
+46,Rebecca,Phillips,rebecca.phillips@example.com,555-0146,146,St. Roch,LA,680
+47,Edward,Campbell,edward.campbell@example.com,555-0147,147,New Carthage,NY,760
+48,Sharon,Parker,sharon.parker@example.com,555-0148,148,New Carthage,NY,730
+49,Ronald,Evans,ronald.evans@example.com,555-0149,149,Charlton,GA,810
+50,Laura,Edwards,laura.edwards@example.com,555-0150,150,Charlton,GA,700
+51,Larry,Collins,larry.collins@example.com,555-0151,151,Civic City,CO,770
