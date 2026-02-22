@@ -2,13 +2,13 @@
 
 ## Executive Summary
 
-We built a **fully automated AWS serverless pipeline** that accomplishes three interconnected goals:
+We built a **serverless AWS pipeline** that accomplishes three interconnected goals in a single batch run:
 
 1. ✅ **LINKS borrower data** from 4 complementary sources
 2. ✅ **EVALUATES refinance eligibility** using 2026 market conditions
-3. ✅ **PRODUCES** a targeted "refi-ready" borrower audience file
+3. ✅ **PRODUCES** a targeted "refi-ready" borrower audience file in S3
 
-**Result**: A marketing-ready CSV file of qualified refinancing candidates, generated automatically in <15 minutes.
+**Result**: A marketing-ready CSV file of qualified refinancing candidates, generated automatically in minutes. Activation to Salesforce Marketing Cloud is out of scope for this POC.
 
 ---
 
@@ -27,6 +27,7 @@ We built a **fully automated AWS serverless pipeline** that accomplishes three i
 │                                                              │
 │  PROCESSING: AWS Serverless Services                       │
 │  ├── S3: Data storage                                       │
+│  ├── Entity Resolution: optional match job (rules-based)   │
 │  ├── Glue: Schema discovery & cataloging                   │
 │  └── Athena: SQL joins & eligibility evaluation           │
 │                                                              │
@@ -38,7 +39,7 @@ We built a **fully automated AWS serverless pipeline** that accomplishes three i
 │  └── marketing_category: Priority tier                     │
 │                                                              │
 │  DELIVERY: S3 output ready for marketing import            │
-│  └── Integrate with Salesforce, email, call center         │
+│  └── Activation to Salesforce is a planned extension       │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -56,7 +57,7 @@ Borrower information lives in 4 separate systems:
 
 Nothing is connected. How do we link them for analysis?
 
-### Our Solution: SQL JOINs
+### Our Solution: SQL JOINs (with optional Entity Resolution)
 
 **Step 1** - Ingest all data to centralized S3
 ```
@@ -94,6 +95,10 @@ JOIN engagement e ON b.borrower_id = e.borrower_id    -- Link by borrower
 B001,John,Doe,5.5%,4.0%,250,true,...
 ```
 
+### Where Entity Resolution Fits
+
+Entity Resolution can run a rules-based match job on the borrower information file (email + phone) to produce a resolved output in S3. In the current POC, Athena joins still reference the raw tables; the resolved output is available for future integration if you want to de-duplicate or cluster identities before joining.
+
 ### Why This Approach Works
 - ✓ **Scalable**: Handles 31 borrowers to millions
 - ✓ **Automated**: No manual data movement
@@ -128,7 +133,7 @@ Example:
 
 **Why?** Lenders need equity as risk protection
 
-#### Rule 2: Savings Must Justifyrefi
+#### Rule 2: Savings Must Justify refi
 ```
 WHERE (current_interest_rate - market_rate_offer) >= 1.0
 
@@ -263,11 +268,11 @@ CSV → Dialer system
 ### Execution Audit Trail
 
 Every time the pipeline runs, Athena generates a unique execution ID:
-- **6efa3e3e-2b0b-44c8-84ac-bf118a9fb49a** (actual output from our POC)
+- **{execution_id}** (example)
 
 This becomes the filename:
 ```
-s3://refi-ready-poc-dev/output/6efa3e3e-2b0b-44c8-84ac-bf118a9fb49a.csv
+s3://refi-ready-poc-dev/output/{execution_id}.csv
 ```
 
 Benefits:
@@ -369,8 +374,8 @@ PHASE 3: LINK & ENRICH
 PHASE 4: GENERATE AUDIENCE FILE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    Output to S3
-    s3://refi-ready-poc-dev/output/6efa3e3e-2b0b-44c8-84ac-bf118a9fb49a.csv
+     Output to S3
+     s3://refi-ready-poc-dev/output/{execution_id}.csv
     
     File Content:
     borrower_id,name,rate_spread,monthly_savings_est,marketing_category
@@ -430,17 +435,15 @@ DELIVERY: READY FOR MARKETING
 ## Execution Summary
 
 ```
-Pipeline Run: 2026-02-20 20:13:08 → 20:24:59 (11.8 minutes)
+Typical Run: minutes end-to-end (depends on crawler duration and data volume)
 
-PHASE 1: Data Ingestion    ✓  2 seconds
-PHASE 2: Schema Discovery  ✓  2-4 minutes
-PHASE 3: Link & Evaluate   ✓  10 seconds
-PHASE 4: Generate Output   ✓  <1 second
-         
-RESULT: 31 borrowers evaluated
-        0 qualified (test data)
-        Audience file ready in S3
-        Marketing deployment ready
+PHASE 1: Data Ingestion    ✓  seconds
+PHASE 2: Schema Discovery  ✓  minutes
+PHASE 3: Link & Evaluate   ✓  seconds
+PHASE 4: Generate Output   ✓  seconds
+
+RESULT: Borrowers evaluated
+     Qualified audience file written to S3
 ```
 
 ---
@@ -489,4 +492,4 @@ Our **Refi-Ready Pipeline** accomplishes the goal by:
 
 The result is an **automated, serverless, scalable system** that delivers targeted refinance opportunities to marketing in less than 15 minutes—with zero ongoing infrastructure or operations overhead.
 
-**Status**: ✅ **COMPLETE AND OPERATIONAL**
+**Status**: ✅ **POC OPERATIONAL** (activation and real-time triggers are planned extensions)
