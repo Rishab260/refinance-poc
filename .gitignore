@@ -78,3 +78,6 @@ tmp/
 Thumbs.db
 .DS_Store
 *.ini
+
+#Conda
+.conda

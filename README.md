@@ -46,7 +46,16 @@ This project is a Proof-of-Concept for a serverless data pipeline on AWS to iden
 
 5.  **Visualize Data (Choose Your Option):**
 
-    **Option A: Jupyter Notebook (FREE) ⭐ Recommended**
+    **Option A: FastAPI + Tailwind Dashboard (Presentation Ready) 🚀**
+    ```bash
+    bash launch_web_dashboard.sh
+    ```
+    - ✅ Web dashboard for pipeline findings
+    - ✅ Interactive filters and charts
+    - ✅ Uses pipeline output (`refi_borrowers_analyzed.csv`) automatically
+    - 📍 Opens at `http://127.0.0.1:8000`
+
+    **Option B: Jupyter Notebook (FREE) ⭐ Recommended**
     ```bash
     jupyter notebook
     # Open refi_dashboard.ipynb and run all cells
@@ -57,7 +66,7 @@ This project is a Proof-of-Concept for a serverless data pipeline on AWS to iden
     - ✅ Full customization with Python
     - 📖 See [JUPYTER_NOTEBOOK_GUIDE.md](JUPYTER_NOTEBOOK_GUIDE.md)
     
-    **Option B: AWS QuickSight (~$19/month)**
+    **Option C: AWS QuickSight (~$19/month)**
     ```bash
     python scripts/setup_quicksight.py
     ```
