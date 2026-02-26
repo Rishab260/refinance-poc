@@ -50,3 +50,13 @@ borrower_id,paperless_billing,email_open_last_30d,mobile_app_login_last_30d,sms_
 49,true,true,true,true
 50,true,false,false,false
 51,false,false,false,false
+52,true,true,true,true
+53,true,true,true,true
+54,true,true,false,false
+55,true,true,false,false
+56,false,false,false,false
+57,true,true,true,true
+58,true,false,true,false
+59,true,true,true,true
+60,true,false,false,false
+61,true,true,true,true

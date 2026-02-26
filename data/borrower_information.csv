@@ -50,3 +50,13 @@ borrower_id,first_name,last_name,email,phone,property_id,city,state,credit_score
 49,Ronald,Evans,ronald.evans@example.com,555-0149,149,Charlton,GA,810
 50,Laura,Edwards,laura.edwards@example.com,555-0150,150,Charlton,GA,700
 51,Larry,Collins,larry.collins@example.com,555-0151,151,Civic City,CO,770
+52,Jon,Smith,john.smith@example.com,555-0101,152,Anytown,CA,748
+53,Jess,Thompson,jessica.thompson@example.com,555-0118,153,Bludhaven,DE,829
+54,George,Turner,george.turner@example.com,555-0145,154,St. Roch,LA,841
+55,Janet,Doe,jane.doe@example.com,555-0102,155,Anytown,CA,799
+56,Pete,Jones,peter.jones@example.com,555-0103,156,Smallville,KS,651
+57,Maria,Johnson,mary.johnson@example.com,555-0104,157,Smallville,KS,721
+58,Dave,Williams,david.williams@example.com,555-0105,158,Metropolis,NY,779
+59,Mike,Davis,michael.davis@example.com,555-0107,159,Gotham,NJ,821
+60,Pat,Miller,patricia.miller@example.com,555-0108,160,Gotham,NJ,709
+61,Rob,Wilson,robert.wilson@example.com,555-0109,161,Star City,WA,791
