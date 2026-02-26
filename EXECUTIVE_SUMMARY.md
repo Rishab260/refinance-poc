@@ -2,11 +2,12 @@
 
 ## Executive Summary
 
-We built a **serverless AWS pipeline** that accomplishes three interconnected goals in a single batch run:
+We built a **serverless AWS pipeline** that accomplishes four interconnected goals in a single batch run:
 
 1. ✅ **LINKS borrower data** from 4 complementary sources
-2. ✅ **EVALUATES refinance eligibility** using 2026 market conditions
-3. ✅ **PRODUCES** a targeted "refi-ready" borrower audience file in S3
+2. ✅ **RESOLVES borrower identities** using AWS Entity Resolution
+3. ✅ **EVALUATES refinance eligibility** using 2026 market conditions
+4. ✅ **PRODUCES** a targeted "refi-ready" borrower audience file in S3
 
 **Result**: A marketing-ready CSV file of qualified refinancing candidates, generated automatically in minutes. Activation to Salesforce Marketing Cloud is out of scope for this POC.
 
@@ -27,7 +28,7 @@ We built a **serverless AWS pipeline** that accomplishes three interconnected go
 │                                                              │
 │  PROCESSING: AWS Serverless Services                       │
 │  ├── S3: Data storage                                       │
-│  ├── Entity Resolution: optional match job (rules-based)   │
+│  ├── Entity Resolution: identity matching (rules-based)    │
 │  ├── Glue: Schema discovery & cataloging                   │
 │  └── Athena: SQL joins & eligibility evaluation           │
 │                                                              │
@@ -57,7 +58,7 @@ Borrower information lives in 4 separate systems:
 
 Nothing is connected. How do we link them for analysis?
 
-### Our Solution: SQL JOINs (with optional Entity Resolution)
+### Our Solution: SQL JOINs + Entity Resolution
 
 **Step 1** - Ingest all data to centralized S3
 ```
@@ -74,7 +75,14 @@ Glue scans S3 → Infers schemas → Registers tables
                  borrower_engagement_csv)
 ```
 
-**Step 3** - Link via SQL JOINs (Athena)
+**Step 3** - Resolve identities (Entity Resolution)
+```
+Borrower records → Entity Resolution workflow
+                     → Rules-based matching (email + phone)
+                     → Canonical identity output in S3
+```
+
+**Step 4** - Link via SQL JOINs (Athena)
 ```sql
 SELECT 
     b.borrower_id,      -- From borrower table
@@ -97,7 +105,7 @@ B001,John,Doe,5.5%,4.0%,250,true,...
 
 ### Where Entity Resolution Fits
 
-Entity Resolution is currently used to run a rules-based matching workflow on the borrower information file (email + phone) and write a resolved output back to S3. The matching job is executed as part of the pipeline run, but the Athena joins still reference the raw tables. This means the POC validates the Entity Resolution workflow end-to-end while keeping the analytics logic stable; the resolved output is available for future integration if you want to de-duplicate or cluster identities before joining.
+Entity Resolution runs as a dedicated identity-matching stage in the pipeline on borrower attributes (email + phone) and writes a resolved output back to S3. In this POC, Athena joins continue to reference the raw tables so we can validate Entity Resolution end-to-end while keeping analytics logic stable. The resolved output is ready for the next iteration where joins can use canonical identities for de-duplication and clustering before eligibility evaluation.
 
 ### Why This Approach Works
 - ✓ **Scalable**: Handles 31 borrowers to millions
@@ -107,7 +115,26 @@ Entity Resolution is currently used to run a rules-based matching workflow on th
 
 ---
 
-## How It Accomplishes Goal 2: EVALUATES REFINANCE ELIGIBILITY USING 2026 MARKET CONDITIONS
+## How It Accomplishes Goal 2: RESOLVES BORROWER IDENTITIES
+
+### Problem to Solve
+The same borrower can appear in multiple records (or with slight variations), which causes duplicate outreach and fragmented analytics.
+
+### Identity Resolution Rules Used in POC
+
+- Match on borrower identity attributes (email + phone)
+- Group matched records into canonical entities
+- Write the resolved identity output to S3 for downstream consumption
+
+### Result
+
+- Cleaner borrower identity layer for future joins
+- Reduced risk of duplicate targeting
+- Better foundation for borrower-level analytics and governance
+
+---
+
+## How It Accomplishes Goal 3: EVALUATES REFINANCE ELIGIBILITY USING 2026 MARKET CONDITIONS
 
 ### Problem to Solve
 How do we identify which borrowers should refinance?
@@ -208,7 +235,7 @@ B004: 0.3% spread → Ineligible (not enough savings)
 
 ---
 
-## How It Accomplishes Goal 3: PRODUCES TARGETED "REFI-READY" BORROWER AUDIENCE FILE
+## How It Accomplishes Goal 4: PRODUCES TARGETED "REFI-READY" BORROWER AUDIENCE FILE
 
 ### The Output File Format
 
@@ -328,9 +355,22 @@ PHASE 2: DISCOVER & CATALOG
     ├─ market_equity_csv (4 columns)
     └─ borrower_engagement_csv (5 columns)
              │
-             │ Goal 1: LINK
-             │ Goal 2: EVALUATE
+                │ Goal 1: LINK
+                │ Goal 2: RESOLVE
              ↓
+
+
+PHASE 2.5: ENTITY RESOLUTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+     Entity Resolution Matching Workflow
+     └─ Rules-based matching on email + phone
+     └─ Consolidates duplicate/fragmented borrower identities
+     └─ Writes canonical identity output to S3
+                │
+                │ Goal 2: RESOLVE
+                │ Goal 3: EVALUATE
+                ↓
     
     
 PHASE 3: LINK & ENRICH
@@ -350,7 +390,7 @@ PHASE 3: LINK & ENRICH
     ├─ B002: Jane, 5.75%, 4.25%, 85% LTV, $220 savings, no
     └─ ... (29 more rows)
              │
-             │ Goal 2: EVALUATE
+             │ Goal 3: EVALUATE
              ↓
     
     Athena Query 2: Evaluate Eligibility
@@ -367,7 +407,7 @@ PHASE 3: LINK & ENRICH
     ├─ B003: 0.95% spread → Hot Lead
     └─ ... (only qualified borrowers)
              │
-             │ Goal 3: PRODUCE
+             │ Goal 4: PRODUCE
              ↓
     
     
@@ -420,12 +460,17 @@ DELIVERY: READY FOR MARKETING
 - **Result**: Single unified row combining 4 data sources
 - **Benefit**: 360° view of each borrower
 
-### ✅ Goal 2: Evaluates Refinance Eligibility Using 2026 Market Conditions
+### ✅ Goal 2: Resolves Borrower Identities
+- **How**: Entity Resolution rules-based matching workflow (email + phone)
+- **Result**: Canonical identity output written to S3
+- **Benefit**: Reduced duplicate outreach and cleaner downstream analysis
+
+### ✅ Goal 3: Evaluates Refinance Eligibility Using 2026 Market Conditions
 - **How**: WHERE filters + CASE tiering logic
 - **Result**: Borrowers ranked by priority
 - **Benefit**: Optimized contact strategy by opportunity size
 
-### ✅ Goal 3: Produces Targeted "Refi-Ready" Borrower Audience File
+### ✅ Goal 4: Produces Targeted "Refi-Ready" Borrower Audience File
 - **How**: Athena outputs CSV to S3
 - **Result**: Marketing-ready CSV with standard columns
 - **Benefit**: Ready to import into any marketing system
@@ -439,6 +484,7 @@ Typical Run: minutes end-to-end (depends on crawler duration and data volume)
 
 PHASE 1: Data Ingestion    ✓  seconds
 PHASE 2: Schema Discovery  ✓  minutes
+PHASE 2.5: Identity Match  ✓  minutes
 PHASE 3: Link & Evaluate   ✓  seconds
 PHASE 4: Generate Output   ✓  seconds
 
@@ -487,8 +533,9 @@ RESULT: Borrowers evaluated
 Our **Refi-Ready Pipeline** accomplishes the goal by:
 
 1. **LINKING** borrower data from 4 sources via SQL JOINs
-2. **EVALUATING** eligibility using business rules + 2026 market conditions
-3. **PRODUCING** a marketing-ready CSV of qualified "refi-ready" borrowers
+2. **RESOLVING** borrower identities with Entity Resolution
+3. **EVALUATING** eligibility using business rules + 2026 market conditions
+4. **PRODUCING** a marketing-ready CSV of qualified "refi-ready" borrowers
 
 The result is an **automated, serverless, scalable system** that delivers targeted refinance opportunities to marketing in less than 15 minutes—with zero ongoing infrastructure or operations overhead.
 
