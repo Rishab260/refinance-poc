@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Refi-Ready Borrower Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <div class="max-w-7xl mx-auto px-4 py-6">
+    <header class="mb-6 rounded-xl bg-white shadow-sm border border-slate-200 p-6">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900">Refi-Ready Borrower Dashboard</h1>
+          <p class="text-sm text-slate-600 mt-1">Pipeline findings for refinance opportunities</p>
+          <p class="text-xs text-slate-500 mt-1">Data Source: <span id="dataSource"></span></p>
+          <p class="text-xs text-slate-500 mt-1">Pipeline Status: <span id="pipelineStatus">Checking...</span></p>
+          <p class="text-xs text-slate-500 mt-1">Pipeline Message: <span id="pipelineMessage">N/A</span></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="refreshDataBtn" class="rounded-md bg-slate-600 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">
+            Refresh Data
+          </button>
+          <button id="runPipelineBtn" class="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50">
+            Run Pipeline
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div class="rounded-xl p-5 text-white bg-gradient-to-r from-sky-500 to-sky-600">
+        <p class="text-sm opacity-90">Total Borrowers</p>
+        <p id="kpiTotalBorrowers" class="text-3xl font-bold mt-1">0</p>
+      </div>
+      <div class="rounded-xl p-5 text-white bg-gradient-to-r from-emerald-500 to-emerald-600">
+        <p class="text-sm opacity-90">Total Monthly Savings</p>
+        <p id="kpiTotalSavings" class="text-3xl font-bold mt-1">$0</p>
+      </div>
+      <div class="rounded-xl p-5 text-white bg-gradient-to-r from-amber-500 to-amber-600">
+        <p class="text-sm opacity-90">Average Rate Spread</p>
+        <p id="kpiAvgSpread" class="text-3xl font-bold mt-1">0.00%</p>
+      </div>
+      <div class="rounded-xl p-5 text-white bg-gradient-to-r from-violet-500 to-violet-600">
+        <p class="text-sm opacity-90">Average LTV Ratio</p>
+        <p id="kpiAvgLtv" class="text-3xl font-bold mt-1">0.00%</p>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <h2 class="font-semibold mb-3">Borrowers by Marketing Category</h2>
+        <canvas id="categoryChart" height="120"></canvas>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <h2 class="font-semibold mb-3">Rate Comparison Analysis</h2>
+        <canvas id="scatterChart" height="120"></canvas>
+      </div>
+    </section>
+
+    <section class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm mb-6">
+      <h2 class="font-semibold mb-3">Pipeline Live Logs</h2>
+      <pre id="pipelineLogs" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 h-40 overflow-auto">No logs yet.</pre>
+    </section>
+
+    <section class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <h2 class="font-semibold mb-3">Top 10 Savings Opportunities</h2>
+        <canvas id="topSavingsChart" height="120"></canvas>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <h2 class="font-semibold mb-3">LTV vs Rate Spread Distribution</h2>
+        <canvas id="heatmapChart" height="120"></canvas>
+      </div>
+    </section>
+
+    <section class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm mb-6">
+      <h2 class="font-semibold mb-3">Engagement Metrics</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div>
+          <h3 class="text-sm font-medium mb-2">Paperless Billing</h3>
+          <canvas id="paperlessChart" height="120"></canvas>
+        </div>
+        <div>
+          <h3 class="text-sm font-medium mb-2">Email Opens (30d)</h3>
+          <canvas id="emailChart" height="120"></canvas>
+        </div>
+        <div>
+          <h3 class="text-sm font-medium mb-2">Mobile App Logins (30d)</h3>
+          <canvas id="mobileChart" height="120"></canvas>
+        </div>
+        <div>
+          <h3 class="text-sm font-medium mb-2">SMS Opt-In</h3>
+          <canvas id="smsChart" height="120"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="sticky bottom-0 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+      <h2 class="font-semibold mb-3">Filters</h2>
+      <div class="grid grid-cols-1 xl:grid-cols-4 gap-4">
+        <div>
+          <label class="text-sm font-medium">Marketing Category</label>
+          <select id="categoryFilter" multiple class="mt-1 w-full rounded-md border-slate-300 text-sm h-28">
+          </select>
+        </div>
+        <div>
+          <label class="text-sm font-medium">LTV Ratio: <span id="ltvRangeLabel"></span></label>
+          <div class="mt-2 flex gap-2 items-center">
+            <input id="ltvMin" type="range" min="0" max="100" value="0" class="w-full" />
+            <input id="ltvMax" type="range" min="0" max="100" value="100" class="w-full" />
+          </div>
+        </div>
+        <div>
+          <label class="text-sm font-medium">Rate Spread: <span id="spreadRangeLabel"></span></label>
+          <div class="mt-2 flex gap-2 items-center">
+            <input id="spreadMin" type="range" min="0" max="3" step="0.01" value="0" class="w-full" />
+            <input id="spreadMax" type="range" min="0" max="3" step="0.01" value="3" class="w-full" />
+          </div>
+        </div>
+        <div>
+          <label class="text-sm font-medium">Engagement (AND logic)</label>
+          <div class="mt-2 text-sm space-y-1">
+            <label class="flex items-center gap-2"><input id="emailActive" type="checkbox" /> Email Active</label>
+            <label class="flex items-center gap-2"><input id="mobileActive" type="checkbox" /> Mobile App Active</label>
+            <label class="flex items-center gap-2"><input id="paperlessEnrolled" type="checkbox" /> Paperless Enrolled</label>
+            <label class="flex items-center gap-2"><input id="smsOptedIn" type="checkbox" /> SMS Opted-In</label>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const dashboardData = JSON.parse({{ data_json | tojson }});
+    const allRecords = dashboardData.records || [];
+    document.getElementById("dataSource").textContent = dashboardData.source_key || "N/A";
+    const pipelineStatusEl = document.getElementById("pipelineStatus");
+    const pipelineMessageEl = document.getElementById("pipelineMessage");
+    const pipelineLogsEl = document.getElementById("pipelineLogs");
+    const runPipelineBtn = document.getElementById("runPipelineBtn");
+    const refreshDataBtn = document.getElementById("refreshDataBtn");
+
+    const colors = {
+      "Immediate Action": "#E74C3C",
+      "Hot Lead": "#F39C12",
+      "Watchlist": "#F1C40F",
+      "Ineligible": "#95A5A6"
+    };
+
+    const categoryFilter = document.getElementById("categoryFilter");
+    const ltvMin = document.getElementById("ltvMin");
+    const ltvMax = document.getElementById("ltvMax");
+    const spreadMin = document.getElementById("spreadMin");
+    const spreadMax = document.getElementById("spreadMax");
+
+    const engagementInputs = {
+      email: document.getElementById("emailActive"),
+      mobile: document.getElementById("mobileActive"),
+      paperless: document.getElementById("paperlessEnrolled"),
+      sms: document.getElementById("smsOptedIn"),
+    };
+
+    dashboardData.categories.forEach((category) => {
+      const option = document.createElement("option");
+      option.value = category;
+      option.textContent = category;
+      option.selected = true;
+      categoryFilter.appendChild(option);
+    });
+
+    const chartStore = {};
+
+    function fmtCurrency(value) {
+      return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value || 0);
+    }
+
+    function fmtPercent(value) {
+      return `${(value || 0).toFixed(2)}%`;
+    }
+
+    function selectedCategories() {
+      return Array.from(categoryFilter.selectedOptions).map((o) => o.value);
+    }
+
+    function getFilteredRecords() {
+      const categories = selectedCategories();
+      const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
+      const maxLtv = Math.max(Number(ltvMin.value), Number(ltvMax.value));
+      const minSpread = Math.min(Number(spreadMin.value), Number(spreadMax.value));
+      const maxSpread = Math.max(Number(spreadMin.value), Number(spreadMax.value));
+
+      return allRecords.filter((r) => {
+        if (!categories.includes(r.marketing_category)) return false;
+        if (r.ltv_ratio < minLtv || r.ltv_ratio > maxLtv) return false;
+        if (r.rate_spread < minSpread || r.rate_spread > maxSpread) return false;
+        if (engagementInputs.email.checked && !r.email_open_last_30d) return false;
+        if (engagementInputs.mobile.checked && !r.mobile_app_login_last_30d) return false;
+        if (engagementInputs.paperless.checked && !r.paperless_billing) return false;
+        if (engagementInputs.sms.checked && !r.sms_opt_in) return false;
+        return true;
+      });
+    }
+
+    function updateKpis(records) {
+      const total = records.length;
+      const savings = records.reduce((acc, r) => acc + r.monthly_savings_est, 0);
+      const avgSpread = total ? records.reduce((acc, r) => acc + r.rate_spread, 0) / total : 0;
+      const avgLtv = total ? records.reduce((acc, r) => acc + r.ltv_ratio, 0) / total : 0;
+
+      document.getElementById("kpiTotalBorrowers").textContent = total.toLocaleString();
+      document.getElementById("kpiTotalSavings").textContent = fmtCurrency(savings);
+      document.getElementById("kpiAvgSpread").textContent = fmtPercent(avgSpread);
+      document.getElementById("kpiAvgLtv").textContent = fmtPercent(avgLtv);
+    }
+
+    function upsertChart(id, config) {
+      if (chartStore[id]) {
+        chartStore[id].destroy();
+      }
+      chartStore[id] = new Chart(document.getElementById(id), config);
+    }
+
+    function updateCategoryChart(records) {
+      const counts = {};
+      dashboardData.categories.forEach((c) => counts[c] = 0);
+      records.forEach((r) => counts[r.marketing_category] = (counts[r.marketing_category] || 0) + 1);
+
+      const labels = dashboardData.categories;
+      const values = labels.map((l) => counts[l] || 0);
+      const bg = labels.map((l) => colors[l]);
+
+      upsertChart("categoryChart", {
+        type: "bar",
+        data: { labels, datasets: [{ label: "Borrowers", data: values, backgroundColor: bg }] },
+        options: { responsive: true, plugins: { legend: { display: false } } },
+      });
+    }
+
+    function updateScatterChart(records) {
+      const datasets = dashboardData.categories.map((category) => {
+        const points = records
+          .filter((r) => r.marketing_category === category)
+          .map((r) => ({ x: r.current_interest_rate, y: r.market_rate_offer, r: Math.max(4, Math.min(20, r.monthly_savings_est / 30)) }));
+        return {
+          label: category,
+          data: points,
+          backgroundColor: colors[category],
+        };
+      });
+
+      upsertChart("scatterChart", {
+        type: "bubble",
+        data: { datasets },
+        options: {
+          scales: {
+            x: { title: { display: true, text: "Current Interest Rate (%)" }, min: 2, max: 7 },
+            y: { title: { display: true, text: "Market Rate Offer (%)" }, min: 2, max: 5 }
+          }
+        },
+      });
+    }
+
+    function updateTopSavingsChart(records) {
+      const top = [...records].sort((a, b) => b.monthly_savings_est - a.monthly_savings_est).slice(0, 10).reverse();
+      upsertChart("topSavingsChart", {
+        type: "bar",
+        data: {
+          labels: top.map((r) => r.full_name),
+          datasets: [{ label: "Monthly Savings", data: top.map((r) => r.monthly_savings_est), backgroundColor: "#3498DB" }],
+        },
+        options: {
+          indexAxis: "y",
+          plugins: { legend: { display: false } },
+          scales: { x: { ticks: { callback: (v) => `$${v}` } } },
+        },
+      });
+    }
+
+    function ltvBand(value) {
+      if (value <= 60) return "0-60%";
+      if (value <= 70) return "60-70%";
+      if (value <= 80) return "70-80%";
+      return ">80%";
+    }
+
+    function spreadBand(value) {
+      if (value <= 0.5) return "0-0.5%";
+      if (value <= 1.0) return "0.5-1.0%";
+      if (value <= 1.5) return "1.0-1.5%";
+      return ">1.5%";
+    }
+
+    function updateHeatmap(records) {
+      const ltvLabels = ["0-60%", "60-70%", "70-80%", ">80%"];
+      const spreadLabels = ["0-0.5%", "0.5-1.0%", "1.0-1.5%", ">1.5%"];
+
+      const counts = {};
+      ltvLabels.forEach((l) => {
+        counts[l] = {};
+        spreadLabels.forEach((s) => counts[l][s] = 0);
+      });
+
+      records.forEach((r) => {
+        counts[ltvBand(r.ltv_ratio)][spreadBand(r.rate_spread)] += 1;
+      });
+
+      const labels = [];
+      const values = [];
+      const background = [];
+      ltvLabels.forEach((l) => {
+        spreadLabels.forEach((s) => {
+          const count = counts[l][s];
+          labels.push(`${l} | ${s}`);
+          values.push(count);
+          const intensity = Math.min(255, 50 + count * 35);
+          background.push(`rgb(${intensity}, ${110 - Math.min(80, count * 8)}, ${255 - Math.min(140, count * 20)})`);
+        });
+      });
+
+      upsertChart("heatmapChart", {
+        type: "bar",
+        data: { labels, datasets: [{ label: "Borrower Count", data: values, backgroundColor: background }] },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { maxRotation: 90, minRotation: 90, font: { size: 10 } } },
+          },
+        },
+      });
+    }
+
+    function donutConfig(records, field, color) {
+      const yes = records.filter((r) => r[field]).length;
+      const no = Math.max(0, records.length - yes);
+      return {
+        type: "doughnut",
+        data: {
+          labels: ["Yes", "No"],
+          datasets: [{ data: [yes, no], backgroundColor: [color, "#95A5A6"] }],
+        },
+        options: { plugins: { legend: { position: "bottom" } }, cutout: "65%" },
+      };
+    }
+
+    function updateEngagementCharts(records) {
+      upsertChart("paperlessChart", donutConfig(records, "paperless_billing", "#2ECC71"));
+      upsertChart("emailChart", donutConfig(records, "email_open_last_30d", "#3498DB"));
+      upsertChart("mobileChart", donutConfig(records, "mobile_app_login_last_30d", "#9B59B6"));
+      upsertChart("smsChart", donutConfig(records, "sms_opt_in", "#F39C12"));
+    }
+
+    function updateRangeLabels() {
+      const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
+      const maxLtv = Math.max(Number(ltvMin.value), Number(ltvMax.value));
+      const minSpread = Math.min(Number(spreadMin.value), Number(spreadMax.value));
+      const maxSpread = Math.max(Number(spreadMin.value), Number(spreadMax.value));
+
+      document.getElementById("ltvRangeLabel").textContent = `${minLtv}% - ${maxLtv}%`;
+      document.getElementById("spreadRangeLabel").textContent = `${minSpread.toFixed(2)}% - ${maxSpread.toFixed(2)}%`;
+    }
+
+    function refreshDashboard() {
+      updateRangeLabels();
+      const records = getFilteredRecords();
+      updateKpis(records);
+      updateCategoryChart(records);
+      updateScatterChart(records);
+      updateTopSavingsChart(records);
+      updateHeatmap(records);
+      updateEngagementCharts(records);
+    }
+
+    function renderPipelineStatus(status) {
+      let label = status.status || "idle";
+      if (status.status === "running") {
+        label = "Running";
+      } else if (status.status === "succeeded") {
+        label = "Succeeded";
+      } else if (status.status === "failed") {
+        label = "Failed";
+      } else {
+        label = "Idle";
+      }
+
+      const parts = [label];
+      if (status.started_at) parts.push(`Started: ${new Date(status.started_at).toLocaleString()}`);
+      if (status.finished_at) parts.push(`Finished: ${new Date(status.finished_at).toLocaleString()}`);
+      pipelineStatusEl.textContent = parts.join(" | ");
+      pipelineMessageEl.textContent = status.message || "N/A";
+      const logs = Array.isArray(status.last_output) && status.last_output.length
+        ? status.last_output.join("\n")
+        : "No logs yet.";
+      pipelineLogsEl.textContent = logs;
+      pipelineLogsEl.scrollTop = pipelineLogsEl.scrollHeight;
+      runPipelineBtn.disabled = status.status === "running";
+
+      if (status.status === "succeeded" && status.source_key) {
+        document.getElementById("dataSource").textContent = status.source_key;
+      }
+    }
+
+    async function fetchPipelineStatus() {
+      try {
+        const response = await fetch("/api/pipeline/status");
+        if (!response.ok) return;
+        const status = await response.json();
+        renderPipelineStatus(status);
+      } catch (_) {
+      }
+    }
+
+    async function triggerPipelineRun() {
+      runPipelineBtn.disabled = true;
+      try {
+        const response = await fetch("/api/pipeline/run", { method: "POST" });
+        const body = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          const message = body.detail || "Unable to start pipeline.";
+          pipelineStatusEl.textContent = `Error: ${message}`;
+          return;
+        }
+
+        await fetchPipelineStatus();
+      } catch (_) {
+        pipelineStatusEl.textContent = "Error: Unable to start pipeline.";
+      } finally {
+        setTimeout(fetchPipelineStatus, 1000);
+      }
+    }
+
+    function refreshDashboardDataSource() {
+      refreshDataBtn.disabled = true;
+      window.location.reload();
+    }
+
+    [categoryFilter, ltvMin, ltvMax, spreadMin, spreadMax, ...Object.values(engagementInputs)].forEach((el) => {
+      el.addEventListener("input", refreshDashboard);
+      el.addEventListener("change", refreshDashboard);
+    });
+
+    runPipelineBtn.addEventListener("click", triggerPipelineRun);
+    refreshDataBtn.addEventListener("click", refreshDashboardDataSource);
+
+    refreshDashboard();
+    fetchPipelineStatus();
+    setInterval(fetchPipelineStatus, 2000);
+  </script>
+</body>
+</html>

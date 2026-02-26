@@ -1,0 +1,31 @@
+{
+    "schemaName": "borrower_schema",
+    "schemaArn": "arn:aws:entityresolution:us-east-1:875786644800:schemamapping/borrower_schema",
+    "description": "Borrower Information Schema",
+    "mappedInputFields": [
+        {
+            "fieldName": "borrower_id",
+            "type": "UNIQUE_ID"
+        },
+        {
+            "fieldName": "name",
+            "type": "NAME"
+        },
+        {
+            "fieldName": "email",
+            "type": "EMAIL_ADDRESS"
+        },
+        {
+            "fieldName": "phone",
+            "type": "PHONE_NUMBER"
+        },
+        {
+            "fieldName": "property_id",
+            "type": "PROVIDER_ID",
+            "subType": "property"
+        }
+    ],
+    "createdAt": "2026-02-20T20:13:35.598000+05:30",
+    "updatedAt": "2026-02-20T20:13:35.598000+05:30",
+    "hasWorkflows": false
+}

@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+pandas
+jinja2
+boto3
+s3fs
