@@ -3,8 +3,9 @@
 ## Goal
 Build an automated AWS pipeline that:
 1. **Links borrower data** from multiple sources
-2. **Evaluates refinance eligibility** using 2026 market conditions
-3. **Produces a targeted "refi-ready" borrower audience file**
+2. **Resolves borrower identities** using AWS Entity Resolution
+3. **Evaluates refinance eligibility** using 2026 market conditions
+4. **Produces a targeted "refi-ready" borrower audience file**
 
 ---
 
@@ -74,6 +75,34 @@ Typical Duration: 2-4 minutes
 
 ---
 
+### **Phase 2.5: Entity Resolution (Identity Matching)**
+
+#### What We Do:
+```
+Cataloged Borrower Records
+    ↓
+AWS Entity Resolution Matching Workflow
+    ↓
+Canonical Borrower Identity Output
+```
+
+#### How It Works:
+1. Configure schema mapping for borrower identity attributes
+2. Run Entity Resolution matching workflow on cataloged source data
+3. Generate match output to consolidate duplicate/fragmented identities
+4. Use canonical identities as a trusted layer for downstream analysis
+
+#### Why This Matters:
+- Prevents duplicate borrowers from being targeted multiple times
+- Improves join accuracy before refinance eligibility logic runs
+- Creates a more reliable "single borrower" view for marketing activation
+- Improves governance through explicit identity matching artifacts
+
+#### Code Location:
+`scripts/check_entity_resolution.py`
+
+---
+
 ### **Phase 3: Data Linking & Enrichment (Amazon Athena)**
 
 #### What We Do:
@@ -117,10 +146,12 @@ JOIN borrower_engagement_csv be
 
 **How This Links Data:**
 - **Borrower Identity** (first_name, last_name) from borrower_information
+- **Canonical Identity Layer** from Entity Resolution match output
 - **Current Loan Terms** (current_interest_rate) from loan_information
 - **2026 Market Opportunity** (market_rate_offer, ltv_ratio, savings) from market_equity
 - **Customer Engagement** (paperless, email, app, SMS) from borrower_engagement
 - **Joins** link these via borrower_id and property_id
+- **Entity Resolution mapping** reduces duplicate/fragmented borrower joins
 
 **Why This View?**
 - Single source of truth for refi analysis
@@ -129,7 +160,6 @@ JOIN borrower_engagement_csv be
 - Easy to update when source data changes
 
 ---
-
 #### Step 3B: Evaluate Refinance Eligibility
 
 **SQL Query:**
@@ -155,7 +185,6 @@ WHERE
 ```
 
 **How This Evaluates Eligibility:**
-
 | Criteria | Logic | Why It Matters |
 |----------|-------|----------------|
 | **LTV ≤ 80%** | `ltv_ratio <= 80` | Borrower has sufficient home equity; lower default risk |
@@ -173,7 +202,7 @@ WHERE
 #### Step 3C: Query Execution Details
 
 **Performance Characteristics:**
-- **Data Source**: Glue Data Catalog tables in S3
+- **Data Source**: Glue Data Catalog tables in S3 + Entity Resolution identity mapping output
 - **Query Engine**: Amazon Athena (distributed SQL on S3)
 - **Output Location**: `s3://refi-ready-poc-dev/output/`
 - **Typical Duration**: 5-10 seconds per query
@@ -260,6 +289,11 @@ The CSV becomes the "refi-ready" audience file that can be:
     ├── loan_information_csv (2 columns, 31 rows)
     ├── market_equity_csv (4 columns, 31 rows)
     └── borrower_engagement_csv (5 columns, 31 rows)
+            ↓
+        [Entity Resolution Matching Workflow]
+        - Applies schema mapping to borrower identity fields
+        - Consolidates duplicate/fragmented identities
+        - Produces canonical borrower mapping for downstream use
     
     
     PHASE 3: DATA LINKING & ENRICHMENT
@@ -309,10 +343,19 @@ The CSV becomes the "refi-ready" audience file that can be:
 | Mechanism | How It Works | Result |
 |-----------|------------|--------|
 | **Glue Crawler** | Auto-discovers and catalogs tables | 4 tables available in Glue |
+| **AWS Entity Resolution** | Matches borrower records that represent the same real-world person | Canonical identity layer before joins |
 | **SQL JOINs** | Links via borrower_id & property_id | Single unified row per borrower |
 | **View Creation** | Creates reusable, pre-joined dataset | `unified_refi_dataset` ready for analysis |
 
-### ✅ **Goal 2: Evaluates Refinance Eligibility Using 2026 Market Conditions**
+### ✅ **Goal 2: Resolves Borrower Identities**
+
+| Mechanism | How It Works | Result |
+|-----------|------------|--------|
+| **Schema Mapping** | Maps identity attributes to Entity Resolution input schema | Consistent matching input across records |
+| **Matching Workflow** | Identifies records belonging to the same real-world borrower | Duplicate/fragmented identities consolidated |
+| **Canonical Identity Output** | Produces trusted borrower-level entity mapping | Cleaner downstream joins and targeting |
+
+### ✅ **Goal 3: Evaluates Refinance Eligibility Using 2026 Market Conditions**
 
 | Mechanism | How It Works | Result |
 |-----------|------------|--------|
@@ -321,7 +364,7 @@ The CSV becomes the "refi-ready" audience file that can be:
 | **Rate Spread Calculation** | `current_rate - market_rate = potential_savings` | Precise savings potential calculated |
 | **Category Tiers** | Three-tier system prioritizes highest-value borrowers | Optimized outreach prioritization |
 
-### ✅ **Goal 3: Produces Targeted "Refi-Ready" Borrower Audience File**
+### ✅ **Goal 4: Produces Targeted "Refi-Ready" Borrower Audience File**
 
 | Mechanism | How It Works | Result |
 |-----------|------------|--------|
@@ -416,6 +459,9 @@ START: 2026-02-20 20:13:08
 ├─ PHASE 2: Glue Crawler executed ✓
 │  └─ 2-4 minutes to scan data & create schema
 │
+├─ PHASE 2.5: Entity Resolution matching executed ✓
+│  └─ Borrower records consolidated into canonical identities
+│
 ├─ PHASE 3: Athena Queries executed ✓
 │  ├─ View creation: 5 seconds
 │  └─ Eligibility query: 5 seconds
@@ -467,8 +513,9 @@ Our pipeline accomplishes the goal through:
 
 1. **Automated Data Collection** - Centralizes borrower data in S3
 2. **Intelligent Cataloging** - Makes data discoverable via Glue
-3. **Smart Linking** - Combines 4 data sources via SQL joins
-4. **Eligibility Evaluation** - Applies 2026 market conditions & rules
-5. **Audience Generation** - Produces marketing-ready borrower file
+3. **Identity Resolution** - Matches duplicate borrower records into canonical entities
+4. **Smart Linking** - Combines 4 data sources via SQL joins
+5. **Eligibility Evaluation** - Applies 2026 market conditions & rules
+6. **Audience Generation** - Produces marketing-ready borrower file
 
 The result: **A fully automated, serverless, scalable system that identifies "refi-ready" borrowers and delivers them to marketing in under 15 minutes.**
