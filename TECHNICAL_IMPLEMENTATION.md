@@ -228,7 +228,16 @@ OUTPUT: Unified Row Per Borrower
 ### Implementation
 
 #### Step 2a: Define Eligibility Criteria
-**Code**: `scripts/run_pipeline.py` → QUALIFICATION QUERY
+
+The pipeline used to execute a *hard‑coded* Athena query, but the current
+implementation makes the SQL customizable.  When running
+`scripts/run_pipeline.py` you can either supply a complete query via the
+`--qualification-query-file` option **or** provide individual filter
+arguments (`--ltv-max`, `--spread-min`, `--category`, etc.) that are
+translated into a `WHERE` clause.  This allows the dashboard to re‑run the
+pipeline with whatever criteria the user has selected.
+
+**Code**: `scripts/run_pipeline.py` → QUALIFICATION QUERY (dynamic)
 
 ```python
 qualification_query = f"""
@@ -608,6 +617,12 @@ def main():
     
     
     # PHASE 3: DATA LINKING & ENRICHMENT
+
+> Support for ad-hoc Athena queries was added. The web dashboard exposes
+> an `/api/athena/run` endpoint that mirrors the pipeline's filter options and
+> a companion `/api/athena/download` endpoint for retrieving the CSV result
+> without rerunning the full ingestion or crawler steps.
+
     # ==================================
     logging.info("Executing Athena queries...")
     athena_client = boto3.client("athena", region_name=AWS_REGION)

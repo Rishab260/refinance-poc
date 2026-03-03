@@ -197,6 +197,11 @@
 ---
 
 ### Bottom: Interactive Filters
+> The filter bar now includes a **Run Query Only** button and a companion
+> **Download CSV** button, placed at the right edge.  Query progress is shown in
+> the pipeline log panel above, and a semi‑transparent overlay prevents
+> interaction while data is loading.  Slider controls are debounced so that
+> small adjustments do not immediately trigger a refresh.
 
 #### Filter Bar Configuration
 1. **Marketing Category** (Multi-select dropdown)

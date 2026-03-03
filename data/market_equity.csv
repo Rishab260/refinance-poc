@@ -1,5 +1,5 @@
 property_id,current_home_value,estimated_equity_amt,ltv_ratio,market_rate_offer,monthly_savings_est
-101,400000,120000,70,3.2,250
+101,400000,120000,35,3.2,250
 102,550000,120000,78,2.5,200
 103,220000,40000,82,4.8,50
 104,300000,60000,80,3.5,150

@@ -1,3 +1,4 @@
+import argparse
 import boto3
 import logging
 import time
@@ -385,6 +386,104 @@ def validate_source_tables_non_empty(athena_client, database, output_location):
     return counts
 
 
+
+# ---------------------------------------------------------------------------
+# query helpers
+# ---------------------------------------------------------------------------
+
+def _default_view_sql() -> str:
+    """Return the standard SQL used to create the unified view."""
+    return f"""
+    CREATE OR REPLACE VIEW unified_refi_dataset AS
+    SELECT
+        bi.borrower_id,
+        bi.first_name,
+        bi.last_name,
+        li.current_interest_rate,
+        me.market_rate_offer,
+        me.ltv_ratio,
+        me.monthly_savings_est,
+        be.paperless_billing,
+        be.email_open_last_30d,
+        be.mobile_app_login_last_30d,
+        be.sms_opt_in
+    FROM
+        borrower_information_csv bi
+    JOIN
+        loan_information_csv li ON bi.borrower_id = li.borrower_id
+    JOIN
+        market_equity_csv me ON bi.property_id = me.property_id
+    JOIN
+        borrower_engagement_csv be ON bi.borrower_id = be.borrower_id
+    """
+
+
+def _build_qualification_sql(args) -> str:
+    """Build the final Athena query using optional filters from the CLI args.
+
+    If no filters are provided this produces the same query that was hard‑coded
+    previously (ltv<=80 and spread>=1.0).  Every argument that is ``None`` is
+    ignored; boolean flags append the corresponding condition when true.
+    """
+    base = """
+    WITH calculated_data AS (
+        SELECT
+            borrower_id,
+            first_name || ' ' || last_name AS name,
+            (current_interest_rate - market_rate_offer) AS rate_spread,
+            monthly_savings_est,
+            ltv_ratio,
+            current_interest_rate,
+            market_rate_offer,
+            email_open_last_30d,
+            mobile_app_login_last_30d,
+            paperless_billing,
+            sms_opt_in,
+            CASE
+                WHEN (current_interest_rate - market_rate_offer) > 1.25 THEN 'Immediate Action'
+                WHEN (current_interest_rate - market_rate_offer) > 0.75 THEN 'Hot Lead'
+                WHEN (current_interest_rate - market_rate_offer) > 0.50 THEN 'Watchlist'
+                ELSE 'Ineligible'
+            END AS marketing_category
+        FROM
+            unified_refi_dataset
+    )
+    SELECT
+        borrower_id,
+        name,
+        rate_spread,
+        monthly_savings_est,
+        marketing_category
+    FROM
+        calculated_data
+    """
+
+    filters: list[str] = []
+    if args.ltv_min is not None:
+        filters.append(f"ltv_ratio >= {args.ltv_min}")
+    if args.ltv_max is not None:
+        filters.append(f"ltv_ratio <= {args.ltv_max}")
+    if args.spread_min is not None:
+        filters.append(f"rate_spread >= {args.spread_min}")
+    if args.spread_max is not None:
+        filters.append(f"rate_spread <= {args.spread_max}")
+    if args.category:
+        cats = ", ".join(f"'{c.replace("'", "''")}'" for c in args.category)
+        filters.append(f"marketing_category IN ({cats})")
+    if args.email_active:
+        filters.append("lower(email_open_last_30d) = 'true'")
+    if args.mobile_active:
+        filters.append("lower(mobile_app_login_last_30d) = 'true'")
+    if args.paperless_enrolled:
+        filters.append("lower(paperless_billing) = 'true'")
+    if args.sms_opted_in:
+        filters.append("lower(sms_opt_in) = 'true'")
+
+    if filters:
+        base += "\nWHERE\n    " + "\n    AND ".join(filters)
+    return base
+
+
 def upload_fallback_output_from_data(s3_client, bucket_name, output_prefix):
     """Generate eligible borrowers output from local data and upload to S3 output prefix."""
     borrowers = pd.read_csv("data/borrower_information.csv")
@@ -421,9 +520,123 @@ def upload_fallback_output_from_data(s3_client, bucket_name, output_prefix):
     logging.info(f"Uploaded fallback output with {len(eligible)} rows to s3://{bucket_name}/{output_key}")
     return fallback_id, len(eligible)
 
+def parse_args():
+    """Parse command line options for customizing Athena SQL or applying filters.
+
+    Two modes are available:
+      * supply ``--qualification-query-file`` or ``--view-query-file`` to override
+        the hard‑coded SQL entirely, or
+      * provide numeric/boolean filter options that will be translated into a
+        ``WHERE`` clause on the default qualification query.  Filters mirror the
+        dashboard controls so that the pipeline can be driven from the UI.
+    """
+    parser = argparse.ArgumentParser(
+        description="Run the Refi pipeline (optional custom Athena queries/filters)"
+    )
+    parser.add_argument(
+        "--view-query-file",
+        help="Path to file containing SQL for creating/updating the unified view",
+    )
+    parser.add_argument(
+        "--qualification-query-file",
+        help="Path to file containing SQL for the final eligibility query",
+    )
+    parser.add_argument(
+        "--athena-only",
+        action="store_true",
+        help="skip data upload/crawler/ER and just execute the Athena queries",
+    )
+    # filter arguments mirror the dashboard parameters
+    parser.add_argument("--ltv-min", type=float, help="minimum ltv ratio")
+    parser.add_argument("--ltv-max", type=float, help="maximum ltv ratio")
+    parser.add_argument("--spread-min", type=float, help="minimum rate spread")
+    parser.add_argument("--spread-max", type=float, help="maximum rate spread")
+    parser.add_argument(
+        "--category",
+        action="append",
+        help="marketing category to include (can be repeated)",
+    )
+    parser.add_argument(
+        "--email-active",
+        action="store_true",
+        help="require email activity",
+    )
+    parser.add_argument(
+        "--mobile-active",
+        action="store_true",
+        help="require mobile app login activity",
+    )
+    parser.add_argument(
+        "--paperless-enrolled",
+        action="store_true",
+        help="require paperless billing enrollment",
+    )
+    parser.add_argument(
+        "--sms-opted-in",
+        action="store_true",
+        help="require SMS opt-in",
+    )
+    return parser.parse_args()
+
+
+def _run_athena_section(args) -> bool:
+    """Helper invoked when ``--athena-only`` is requested.
+
+    Returns True on success; any errors are logged by the caller.
+    """
+    athena_client = boto3.client("athena", region_name=AWS_REGION)
+    # run view
+    if args.view_query_file:
+        logging.info(f"Reading view SQL from {args.view_query_file}")
+        with open(args.view_query_file, "r") as f:
+            view_query = f.read()
+    else:
+        view_query = _default_view_sql()
+    execute_athena_query(athena_client, view_query, GLUE_DATABASE_NAME, ATHENA_OUTPUT_LOCATION)
+
+    # run qualification
+    if args.qualification_query_file:
+        logging.info(f"Reading qualification SQL from {args.qualification_query_file}")
+        with open(args.qualification_query_file, "r") as f:
+            qualification_query = f.read()
+    else:
+        qualification_query = _build_qualification_sql(args)
+
+    query_execution_id = execute_athena_query(
+        athena_client,
+        qualification_query,
+        GLUE_DATABASE_NAME,
+        FINAL_OUTPUT_LOCATION,
+    )
+
+    if query_execution_id and athena_result_has_rows(athena_client, query_execution_id):
+        logging.info(f"Final output is being generated at: {FINAL_OUTPUT_LOCATION}{query_execution_id}.csv")
+        return True
+    elif query_execution_id:
+        logging.warning("Athena query succeeded but returned 0 rows. Generating fallback output from source CSVs...")
+        fallback_execution_id, fallback_rows = upload_fallback_output_from_data(
+            boto3.client("s3", region_name=AWS_REGION),
+            S3_BUCKET_NAME,
+            "output",
+        )
+        logging.info(f"Fallback output generated with {fallback_rows} rows at: {FINAL_OUTPUT_LOCATION}{fallback_execution_id}.csv")
+        return True
+    else:
+        logging.warning("Could not generate final output due to query failure")
+        return False
+
+
 def main():
     """Main function to run the data pipeline."""
+    args = parse_args()
     logging.info("Starting data pipeline execution...")
+
+    # when only Athena is needed, skip upload/crawler/ER
+    if args.athena_only:
+        success = _run_athena_section(args)
+        if not success:
+            exit(1)
+        return
 
     # Initialize AWS clients
     s3_client = boto3.client("s3", region_name=AWS_REGION)
@@ -470,50 +683,29 @@ def main():
         exit(1)
     
     # 5. Execute Athena Queries
-    view_query = f"""
-    CREATE OR REPLACE VIEW unified_refi_dataset AS
-    SELECT
-        bi.borrower_id,
-        bi.first_name,
-        bi.last_name,
-        li.current_interest_rate,
-        me.market_rate_offer,
-        me.ltv_ratio,
-        me.monthly_savings_est,
-        be.paperless_billing,
-        be.email_open_last_30d,
-        be.mobile_app_login_last_30d,
-        be.sms_opt_in
-    FROM
-        borrower_information_csv bi
-    JOIN
-        loan_information_csv li ON bi.borrower_id = li.borrower_id
-    JOIN
-        market_equity_csv me ON bi.property_id = me.property_id
-    JOIN
-        borrower_engagement_csv be ON bi.borrower_id = be.borrower_id
-    """
+    # view query may be overridden via CLI; otherwise use the built‑in definition
+    if args.view_query_file:
+        logging.info(f"Reading view SQL from {args.view_query_file}")
+        with open(args.view_query_file, "r") as f:
+            view_query = f.read()
+    else:
+        view_query = _default_view_sql()
     execute_athena_query(athena_client, view_query, GLUE_DATABASE_NAME, ATHENA_OUTPUT_LOCATION)
-    
-    qualification_query = f"""
-    SELECT
-        borrower_id,
-        first_name || ' ' || last_name AS name,
-        (current_interest_rate - market_rate_offer) AS rate_spread,
-        monthly_savings_est,
-        CASE
-            WHEN (current_interest_rate - market_rate_offer) > 1.25 THEN 'Immediate Action'
-            WHEN (current_interest_rate - market_rate_offer) > 0.75 THEN 'Hot Lead'
-            WHEN (current_interest_rate - market_rate_offer) > 0.50 THEN 'Watchlist'
-            ELSE 'Ineligible'
-        END AS marketing_category
-    FROM
-        unified_refi_dataset
-    WHERE
-        ltv_ratio <= 80
-        AND (current_interest_rate - market_rate_offer) >= 1.0
-    """
-    query_execution_id = execute_athena_query(athena_client, qualification_query, GLUE_DATABASE_NAME, FINAL_OUTPUT_LOCATION)
+
+    # build qualification query: either from file or dynamically based on filters
+    if args.qualification_query_file:
+        logging.info(f"Reading qualification SQL from {args.qualification_query_file}")
+        with open(args.qualification_query_file, "r") as f:
+            qualification_query = f.read()
+    else:
+        qualification_query = _build_qualification_sql(args)
+
+    query_execution_id = execute_athena_query(
+        athena_client,
+        qualification_query,
+        GLUE_DATABASE_NAME,
+        FINAL_OUTPUT_LOCATION,
+    )
 
     if query_execution_id and athena_result_has_rows(athena_client, query_execution_id):
         logging.info(f"Final output is being generated at: {FINAL_OUTPUT_LOCATION}{query_execution_id}.csv")

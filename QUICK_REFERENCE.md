@@ -29,6 +29,12 @@ S3 Raw Zone ──→ [Auto-Schema Detection] ──→ Glue Data Catalog
 
 ### PHASE 3: DATA LINKING & ENRICHMENT
 **What**: Join tables and evaluate eligibility
+
+> The Athena SQL used in this phase is now parameterizable.  You can
+> supply a full query file or specify individual filters (LTV, spread,
+> marketing category, engagement flags) when running
+> `scripts/run_pipeline.py` or triggering a run via the dashboard API.
+> Defaults match the hard-coded thresholds shown below.
 **Why**: Single source of truth + apply business rules
 **AWS Service**: Amazon Athena (SQL)
 **Time**: ~10 seconds total
@@ -60,6 +66,14 @@ Query 2: EVALUATE ELIGIBILITY
 ```
 
 ### PHASE 4: AUDIENCE GENERATION
+
+> **New**: ad-hoc Athena query API available at `/api/athena/run` and
+> `/api/athena/download`.  Use the dashboard "Run Query Only" button to
+> generate and fetch a CSV without rerunning the full pipeline; a separate
+> "Download CSV" button is provided and the log pane displays status
+> messages.  A loading overlay and placeholder text ensure the user knows
+> when fresh data is being fetched.
+
 **What**: Output qualified borrowers to CSV
 **Why**: Ready for marketing import
 **AWS Service**: S3 (Output Zone)

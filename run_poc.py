@@ -4,6 +4,7 @@ Comprehensive orchestration script for the Refi-Ready POC.
 This script checks prerequisites, sets up infrastructure, and runs the pipeline.
 """
 
+import argparse
 import boto3
 import sys
 import logging
@@ -91,13 +92,21 @@ def run_infrastructure_setup(glue_role_arn):
         print(result.stderr)
         return False
 
-def run_pipeline():
-    """Run the data pipeline."""
+def run_pipeline(pipeline_args=None):
+    """Run the data pipeline.
+
+    ``pipeline_args`` (list) may contain additional command line tokens that are
+    appended when invoking the underlying ``run_pipeline.py`` script.  This
+    allows callers such as ``run_poc.py`` or the dashboard API to tweak the
+    Athena query without having to duplicate the entire orchestration logic.
+    """
     logging.info("\n" + "="*80)
     logging.info("STEP 2: PIPELINE EXECUTION")
     logging.info("="*80)
     
     cmd = ['python', 'scripts/run_pipeline.py']
+    if pipeline_args:
+        cmd += pipeline_args
     
     logging.info(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -113,6 +122,19 @@ def run_pipeline():
 
 def main():
     """Main orchestration function."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Orchestrate the Refi POC end-to-end. Any arguments passed "
+            "after \"--\" are forwarded to the pipeline step."
+        )
+    )
+    parser.add_argument(
+        '--pipeline-args',
+        nargs=argparse.REMAINDER,
+        help='arguments to forward to scripts/run_pipeline.py',
+    )
+    parsed = parser.parse_args()
+
     logging.info("="*80)
     logging.info("REFI-READY POC ORCHESTRATION")
     logging.info("="*80)
@@ -139,8 +161,8 @@ def main():
         logging.error("\nInfrastructure setup failed. Cannot proceed.")
         sys.exit(1)
     
-    # Run pipeline
-    if not run_pipeline():
+    # Run pipeline (forward any extra args provided on the command line)
+    if not run_pipeline(parsed.pipeline_args):
         logging.error("\nPipeline execution failed.")
         sys.exit(1)
     

@@ -24,6 +24,15 @@ Then open: `http://127.0.0.1:8000`
 python scripts/run_pipeline.py
 ```
 
+The **Run Pipeline** button at the top of the dashboard will post the
+current filter settings to the backend; the Athena query executed as part of
+that run will incorporate the same constraints.
+
+A new **Run Query Only** button allows you to execute the Athena
+eligibility query directly (skipping upload, Glue, and entity resolution).
+After it completes you can click the resulting "Download CSV" link to fetch
+rows.
+
 For end-to-end setup + execution:
 
 ```bash

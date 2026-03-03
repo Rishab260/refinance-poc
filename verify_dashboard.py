@@ -142,6 +142,25 @@ def main():
         print("🚀 Next Step: Run the dashboard with:")
         print("   bash launch_dashboard.sh")
         print()
+
+        # try a simple server query against the new /api/data endpoint
+        try:
+            import requests
+            print("🔍 Testing /api/data filter API (app must be running)...")
+            resp = requests.get(
+                "http://127.0.0.1:8000/api/data",
+                params={"category": "Immediate Action", "ltv_min": 60},
+                timeout=5,
+            )
+            if resp.ok:
+                print(f"  ✓ API returned {len(resp.json().get('records', []))} records")
+            else:
+                print(f"  ⚠️ API responded with status {resp.status_code}")
+        except ImportError:
+            print("  (requests library not installed; skipping API test)")
+        except Exception as e:
+            print(f"  ⚠️ API request failed: {e}")
+
         return True
     else:
         print("=" * 70)
