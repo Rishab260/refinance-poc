@@ -79,27 +79,7 @@
       </div>
     </section>
 
-    <section class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm mb-6">
-      <h2 class="font-semibold mb-3">Engagement Metrics</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div>
-          <h3 class="text-sm font-medium mb-2">Paperless Billing</h3>
-          <canvas id="paperlessChart" height="120"></canvas>
-        </div>
-        <div>
-          <h3 class="text-sm font-medium mb-2">Email Opens (30d)</h3>
-          <canvas id="emailChart" height="120"></canvas>
-        </div>
-        <div>
-          <h3 class="text-sm font-medium mb-2">Mobile App Logins (30d)</h3>
-          <canvas id="mobileChart" height="120"></canvas>
-        </div>
-        <div>
-          <h3 class="text-sm font-medium mb-2">SMS Opt-In</h3>
-          <canvas id="smsChart" height="120"></canvas>
-        </div>
-      </div>
-    </section>
+
 
     <section class="sticky bottom-0 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
       <h2 class="font-semibold mb-3">Filters</h2>
@@ -123,15 +103,7 @@
             <input id="spreadMax" type="range" min="0" max="3" step="0.01" value="3" class="flex-1" />
           </div>
         </div>
-        <div>
-          <label class="text-sm font-medium">Engagement (AND logic)</label>
-          <div class="mt-2 text-sm space-y-1">
-            <label class="flex items-center gap-2"><input id="emailActive" type="checkbox" /> Email Active</label>
-            <label class="flex items-center gap-2"><input id="mobileActive" type="checkbox" /> Mobile App Active</label>
-            <label class="flex items-center gap-2"><input id="paperlessEnrolled" type="checkbox" /> Paperless Enrolled</label>
-            <label class="flex items-center gap-2"><input id="smsOptedIn" type="checkbox" /> SMS Opted-In</label>
-          </div>
-        </div>
+
       </div>
       <!-- action button moved into filter panel -->
       <div class="mt-4 flex justify-end items-center gap-2">
@@ -191,13 +163,6 @@
     const spreadMin = document.getElementById("spreadMin");
     const spreadMax = document.getElementById("spreadMax");
 
-    const engagementInputs = {
-      email: document.getElementById("emailActive"),
-      mobile: document.getElementById("mobileActive"),
-      paperless: document.getElementById("paperlessEnrolled"),
-      sms: document.getElementById("smsOptedIn"),
-    };
-
     // make sure filters show initial state even before first data fetch
     updateRangeLabels();
 
@@ -238,14 +203,6 @@
       params.set("spread_min", minSpread);
       params.set("spread_max", maxSpread);
 
-      Object.entries(engagementInputs).forEach(([key, el]) => {
-        if (el.checked) {
-          params.set(key + "_active", true);
-        }
-      });
-      // note: server expects email_active, mobile_active, paperless_enrolled, sms_opted_in
-      if (engagementInputs.paperless.checked) params.set("paperless_enrolled", true);
-      if (engagementInputs.sms.checked) params.set("sms_opted_in", true);
 
       return params;
     }
@@ -276,10 +233,6 @@
         if (!categories.includes(r.marketing_category)) return false;
         if (r.ltv_ratio < minLtv || r.ltv_ratio > maxLtv) return false;
         if (r.rate_spread < minSpread || r.rate_spread > maxSpread) return false;
-        if (engagementInputs.email.checked && !r.email_open_last_30d) return false;
-        if (engagementInputs.mobile.checked && !r.mobile_app_login_last_30d) return false;
-        if (engagementInputs.paperless.checked && !r.paperless_billing) return false;
-        if (engagementInputs.sms.checked && !r.sms_opt_in) return false;
         return true;
       });
     }
@@ -412,25 +365,6 @@
       });
     }
 
-    function donutConfig(records, field, color) {
-      const yes = records.filter((r) => r[field]).length;
-      const no = Math.max(0, records.length - yes);
-      return {
-        type: "doughnut",
-        data: {
-          labels: ["Yes", "No"],
-          datasets: [{ data: [yes, no], backgroundColor: [color, "#95A5A6"] }],
-        },
-        options: { plugins: { legend: { position: "bottom" } }, cutout: "65%" },
-      };
-    }
-
-    function updateEngagementCharts(records) {
-      upsertChart("paperlessChart", donutConfig(records, "paperless_billing", "#2ECC71"));
-      upsertChart("emailChart", donutConfig(records, "email_open_last_30d", "#3498DB"));
-      upsertChart("mobileChart", donutConfig(records, "mobile_app_login_last_30d", "#9B59B6"));
-      upsertChart("smsChart", donutConfig(records, "sms_opt_in", "#F39C12"));
-    }
 
     function updateRangeLabels() {
       const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
@@ -471,7 +405,6 @@
       updateScatterChart(records);
       updateTopSavingsChart(records);
       updateHeatmap(records);
-      updateEngagementCharts(records);
       hideLoading();
     }
 
@@ -536,13 +469,6 @@
       payload.spread_min = minSpread;
       payload.spread_max = maxSpread;
 
-      Object.entries(engagementInputs).forEach(([key, el]) => {
-        if (el.checked) {
-          // convert to API field names
-          const apiKey = key === 'paperless' ? 'paperless_enrolled' : key === 'sms' ? 'sms_opted_in' : `${key}_active`;
-          payload[apiKey] = true;
-        }
-      });
 
       try {
         const response = await fetch("/api/pipeline/run", {
@@ -581,7 +507,7 @@
       refreshTimeout = setTimeout(refreshDashboard, 400);
     }
 
-    const filterElements = [categoryFilter, ltvMin, ltvMax, spreadMin, spreadMax, ...Object.values(engagementInputs)];
+    const filterElements = [categoryFilter, ltvMin, ltvMax, spreadMin, spreadMax];
     filterElements.forEach((el) => {
       el.addEventListener("input", () => {
         updateRangeLabels();

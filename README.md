@@ -64,10 +64,10 @@ bash launch_web_dashboard.sh
 - URL: `http://127.0.0.1:8000`
 - Reads latest pipeline CSV from `s3://refi-ready-poc-dev/output/`
 - Fallback path derives a dataset from `s3://refi-ready-poc-dev/raw/` if needed
-- **Custom queries**: Frontend filters send requests to the new `/api/data` endpoint so you can programmatically retrieve records filtered by marketing category, LTV range, rate spread range, and engagement flags. Example:
+- **Custom queries**: Frontend filters send requests to the new `/api/data` endpoint so you can programmatically retrieve records filtered by marketing category, LTV range and rate spread range. Example:
 
 ```bash
-curl "http://127.0.0.1:8000/api/data?category=Hot+Lead&ltv_min=60&ltv_max=80&email_active=true"
+curl "http://127.0.0.1:8000/api/data?category=Hot+Lead&ltv_min=60&ltv_max=80"
 ```
 
   Additionally, the dashboard now offers a **Run Query Only** button (along
