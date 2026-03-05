@@ -6,11 +6,15 @@
   <title>Refi-Ready Borrower Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800">
-  <!-- loading overlay shown while data is being fetched -->
-  <div id="loadingOverlay" class="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50 hidden">
-    <div class="text-xl font-semibold text-slate-800">Loading data…</div>
+  <!-- loading spinner shown while data is being fetched -->
+  <div id="loadingOverlay" class="fixed bottom-6 right-6 z-50 hidden">
+    <div class="flex flex-col items-center gap-2">
+      <div class="w-10 h-10 rounded-full border-4 border-slate-300 border-t-sky-600 animate-spin"></div>
+      <span class="text-xs text-slate-600 font-medium">Loading…</span>
+    </div>
   </div>
   <div class="max-w-7xl mx-auto px-4 py-6">
     <header class="mb-6 rounded-xl bg-white shadow-sm border border-slate-200 p-6">
@@ -18,7 +22,13 @@
         <div>
           <h1 class="text-2xl font-bold text-slate-900">Refi-Ready Borrower Dashboard</h1>
           <p class="text-sm text-slate-600 mt-1">Pipeline findings for refinance opportunities</p>
-          <p class="text-xs text-slate-500 mt-1">Data Source: <span id="dataSource"></span></p>
+          <p class="text-xs text-slate-500 mt-1">Data Source: 
+            <select id="dataSourceDropdown" class="inline-block bg-transparent border-b border-slate-500 text-slate-700 font-medium focus:outline-none cursor-pointer">
+              <option value="current">Current</option>
+            </select>
+            <span id="dataSource"></span>
+          </p>
+          <p class="text-xs text-slate-500 mt-1">S3 Path: <span id="s3Path">-</span></p>
           <p class="text-xs text-slate-500 mt-1">Pipeline Status: <span id="pipelineStatus">Checking...</span></p>
           <p class="text-xs text-slate-500 mt-1">Pipeline Message: <span id="pipelineMessage">N/A</span></p>
         </div>
@@ -82,8 +92,11 @@
 
 
     <section class="sticky bottom-0 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      <h2 class="font-semibold mb-3">Filters</h2>
-      <div class="grid grid-cols-1 xl:grid-cols-4 gap-4">
+      <div class="flex items-center justify-between mb-3 cursor-pointer" id="filtersHeader">
+        <h2 class="font-semibold">Filters</h2>
+        <span id="filtersToggleIcon" class="text-slate-600 transition-transform">▼</span>
+      </div>
+      <div id="filtersContent" class="grid grid-cols-1 xl:grid-cols-4 gap-4">
         <div>
           <label class="text-sm font-medium">Marketing Category</label>
           <select id="categoryFilter" multiple class="mt-1 w-full rounded-md border-slate-300 text-sm h-28">
@@ -91,22 +104,39 @@
         </div>
         <div>
           <label class="text-sm font-medium">LTV Ratio: <span id="ltvRangeLabel">0% - 100%</span></label>
-          <div class="mt-2 flex gap-2 items-center">
-            <input id="ltvMin" type="range" min="0" max="100" value="0" class="flex-1" />
-            <input id="ltvMax" type="range" min="0" max="100" value="100" class="flex-1" />
+          <div class="mt-2 space-y-2">
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-slate-600 w-12">Min:</label>
+              <input id="ltvMin" type="range" min="0" max="100" value="0" class="flex-1" />
+              <span id="ltvMinValue" class="text-xs font-medium text-slate-700 w-8">0%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-slate-600 w-12">Max:</label>
+              <input id="ltvMax" type="range" min="0" max="100" value="100" class="flex-1" />
+              <span id="ltvMaxValue" class="text-xs font-medium text-slate-700 w-8">100%</span>
+            </div>
           </div>
         </div>
         <div>
           <label class="text-sm font-medium">Rate Spread: <span id="spreadRangeLabel">0.00% - 3.00%</span></label>
-          <div class="mt-2 flex gap-2 items-center">
-            <input id="spreadMin" type="range" min="0" max="3" step="0.01" value="0" class="flex-1" />
-            <input id="spreadMax" type="range" min="0" max="3" step="0.01" value="3" class="flex-1" />
+          <div class="mt-2 space-y-2">
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-slate-600 w-12">Min:</label>
+              <input id="spreadMin" type="range" min="0" max="3" step="0.01" value="0" class="flex-1" />
+              <span id="spreadMinValue" class="text-xs font-medium text-slate-700 w-12">0.00%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-slate-600 w-12">Max:</label>
+              <input id="spreadMax" type="range" min="0" max="3" step="0.01" value="3" class="flex-1" />
+              <span id="spreadMaxValue" class="text-xs font-medium text-slate-700 w-12">3.00%</span>
+            </div>
           </div>
         </div>
 
       </div>
+      </div>
       <!-- action button moved into filter panel -->
-      <div class="mt-4 flex justify-end items-center gap-2">
+      <div id="filtersActions" class="mt-4 flex justify-end items-center gap-2">
         <button id="runQueryBtn" class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
           Run Query Only
         </button>
@@ -126,8 +156,38 @@
 
     <section class="mb-6">
       <h2 class="font-semibold mb-3">Athena Query Result</h2>
-      <div class="flex gap-2 items-center">
-        <a id="queryDownloadLink" class="text-sm text-sky-600 underline" href="#" target="_blank" style="display:none;">Download CSV</a>
+      <div class="flex gap-2 items-center mb-4">
+        <a id="queryDownloadLink" class="text-sm text-sky-600 underline" href="#" target="_blank" style="display:none;">Download Full CSV</a>
+      </div>
+
+      <!-- Athena Loading Spinner -->
+      <div id="athenaLoadingSpinner" class="flex flex-col items-center justify-center gap-3 py-12" style="display:none;">
+        <div class="w-12 h-12 rounded-full border-4 border-slate-300 border-t-sky-600 animate-spin"></div>
+        <span class="text-sm text-slate-600 font-medium">Running Athena query…</span>
+      </div>
+      
+      <!-- CSV Results Table -->
+      <div id="csvTableContainer" class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm" style="display:none;">
+        <div class="mb-4">
+          <input id="csvTableFilter" type="text" placeholder="Search table..." class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" style="display:none;" />
+        </div>
+        <div class="overflow-x-auto">
+          <table id="csvTable" class="w-full text-sm border-collapse">
+            <thead id="csvTableHead" class="bg-slate-100 border-b border-slate-300">
+            </thead>
+            <tbody id="csvTableBody" class="divide-y divide-slate-200">
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-4 flex items-center justify-between">
+          <span id="csvTableInfo" class="text-xs text-slate-600"></span>
+          <div class="flex gap-2 items-center">
+            <button id="csvTablePrevBtn" class="rounded-md bg-slate-600 px-3 py-1 text-xs font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">← Previous</button>
+            <input id="csvTablePageInput" type="number" min="1" value="1" class="w-12 rounded-md border border-slate-300 px-2 py-1 text-xs text-center" />
+            <span class="text-xs text-slate-600">of <span id="csvTableTotalPages">0</span></span>
+            <button id="csvTableNextBtn" class="rounded-md bg-slate-600 px-3 py-1 text-xs font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">Next →</button>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -136,7 +196,71 @@
     const dashboardData = JSON.parse({{ data_json | tojson }});
     const allRecords = dashboardData.records || [];
     document.getElementById("dataSource").textContent = dashboardData.source_key || "N/A";
+    document.getElementById("s3Path").textContent = dashboardData.s3_path || "-";
     const pipelineStatusEl = document.getElementById("pipelineStatus");
+
+    // Data Source History Management
+    const dataSourceDropdown = document.getElementById("dataSourceDropdown");
+    const s3PathEl = document.getElementById("s3Path");
+    let runHistory = [];
+    const maxHistoryItems = 10;
+
+    function addToRunHistory(dataSource, csvData, s3Path = "-") {
+      const timestamp = new Date().toLocaleString();
+      const entry = {
+        id: Date.now(),
+        label: `${dataSource} - ${timestamp}`,
+        timestamp: timestamp,
+        dataSource: dataSource,
+        csvData: csvData,
+        s3Path: s3Path
+      };
+      runHistory.unshift(entry);
+      if (runHistory.length > maxHistoryItems) {
+        runHistory.pop();
+      }
+      updateDataSourceDropdown();
+    }
+
+    function updateDataSourceDropdown() {
+      // Clear existing options except the first one
+      while (dataSourceDropdown.options.length > 1) {
+        dataSourceDropdown.remove(1);
+      }
+      
+      // Add recent runs
+      runHistory.forEach((entry) => {
+        const option = document.createElement("option");
+        option.value = entry.id;
+        option.textContent = entry.label;
+        dataSourceDropdown.appendChild(option);
+      });
+    }
+
+    function restoreRun(runId) {
+      if (runId === "current") {
+        s3PathEl.textContent = "-";
+        return;
+      }
+      
+      const entry = runHistory.find(r => r.id == runId);
+      if (entry) {
+        csvData = entry.csvData;
+        filteredData = [...csvData];
+        currentPage = 1;
+        csvTableFilter.style.display = "block";
+        csvTableContainer.style.display = "block";
+        displayCsvTable();
+        updateKpis(csvData);
+        document.getElementById("dataSource").textContent = entry.dataSource;
+        s3PathEl.textContent = entry.s3Path;
+        pipelineLogsEl.textContent = `Restored: ${entry.dataSource} from ${entry.timestamp}`;
+      }
+    }
+
+    dataSourceDropdown.addEventListener("change", (e) => {
+      restoreRun(e.target.value);
+    });
 
     // loading overlay helpers
     const loadingOverlay = document.getElementById('loadingOverlay');
@@ -373,7 +497,11 @@
       const maxSpread = Math.max(Number(spreadMin.value), Number(spreadMax.value));
 
       document.getElementById("ltvRangeLabel").textContent = `${minLtv}% - ${maxLtv}%`;
+      document.getElementById("ltvMinValue").textContent = `${minLtv}%`;
+      document.getElementById("ltvMaxValue").textContent = `${maxLtv}%`;
       document.getElementById("spreadRangeLabel").textContent = `${minSpread.toFixed(2)}% - ${maxSpread.toFixed(2)}%`;
+      document.getElementById("spreadMinValue").textContent = `${minSpread.toFixed(2)}%`;
+      document.getElementById("spreadMaxValue").textContent = `${maxSpread.toFixed(2)}%`;
     }
 
     function updateShareLink() {
@@ -405,6 +533,14 @@
       updateScatterChart(records);
       updateTopSavingsChart(records);
       updateHeatmap(records);
+      
+      // Add to run history if we have server data
+      if (serverPayload && serverPayload.records) {
+        const dataSourceName = serverPayload.source_key || "Pipeline Data";
+        const s3Path = serverPayload.s3_path || "-";
+        addToRunHistory(dataSourceName, records, s3Path);
+      }
+      
       hideLoading();
     }
 
@@ -537,10 +673,166 @@
     fetchPipelineStatus();
     setInterval(fetchPipelineStatus, 2000);
 
+    // Filters Collapsible
+    const filtersHeader = document.getElementById("filtersHeader");
+    const filtersContent = document.getElementById("filtersContent");
+    const filtersActions = document.getElementById("filtersActions");
+    const filtersToggleIcon = document.getElementById("filtersToggleIcon");
+    let filtersExpanded = true;
+
+    function toggleFilters() {
+      filtersExpanded = !filtersExpanded;
+      if (filtersExpanded) {
+        filtersContent.style.display = "grid";
+        filtersActions.style.display = "flex";
+        filtersToggleIcon.style.transform = "rotate(0deg)";
+      } else {
+        filtersContent.style.display = "none";
+        filtersActions.style.display = "none";
+        filtersToggleIcon.style.transform = "rotate(-90deg)";
+      }
+    }
+
+    filtersHeader.addEventListener("click", toggleFilters);
+
+    // CSV Table Management
+    let csvData = [];
+    const rowsPerPage = 10;
+    let currentPage = 1;
+    let filteredData = [];
+
+    const csvTableContainer = document.getElementById("csvTableContainer");
+    const csvTable = document.getElementById("csvTable");
+    const csvTableHead = document.getElementById("csvTableHead");
+    const csvTableBody = document.getElementById("csvTableBody");
+    const csvTableFilter = document.getElementById("csvTableFilter");
+    const csvTableInfo = document.getElementById("csvTableInfo");
+    const csvTablePageInput = document.getElementById("csvTablePageInput");
+    const csvTablePrevBtn = document.getElementById("csvTablePrevBtn");
+    const csvTableNextBtn = document.getElementById("csvTableNextBtn");
+    const csvTableTotalPages = document.getElementById("csvTableTotalPages");
+    const athenaLoadingSpinner = document.getElementById("athenaLoadingSpinner");
+
+    // Engagement inputs (if they exist on the page)
+    const engagementInputs = {};
+
+    function displayCsvTable() {
+      if (filteredData.length === 0) {
+        csvTableContainer.style.display = "none";
+        return;
+      }
+
+      csvTableContainer.style.display = "block";
+      const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+      csvTableTotalPages.textContent = totalPages;
+
+      // Clamp page number
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+      csvTablePageInput.value = currentPage;
+
+      const start = (currentPage - 1) * rowsPerPage;
+      const end = Math.min(start + rowsPerPage, filteredData.length);
+      const pageData = filteredData.slice(start, end);
+
+      // Create header
+      if (csvData.length > 0 && pageData.length > 0) {
+        const headers = Object.keys(pageData[0]);
+        csvTableHead.innerHTML = `<tr class="bg-slate-100">${headers.map(h => `<th class="px-4 py-2 text-left font-semibold text-slate-700 border-b border-slate-300">${h}</th>`).join("")}</tr>`;
+
+        // Create body rows
+        csvTableBody.innerHTML = pageData.map((row, idx) => {
+          return `<tr class="hover:bg-slate-50">${Object.values(row).map(v => `<td class="px-4 py-2 border-b border-slate-200 text-slate-800">${v}</td>`).join("")}</tr>`;
+        }).join("");
+      }
+
+      csvTableInfo.textContent = `Showing ${start + 1} to ${end} of ${filteredData.length} rows`;
+      csvTablePrevBtn.disabled = currentPage === 1;
+      csvTableNextBtn.disabled = currentPage === totalPages;
+    }
+
+    function filterCsvTable(searchTerm) {
+      if (!searchTerm.trim()) {
+        filteredData = [...csvData];
+      } else {
+        const term = searchTerm.toLowerCase();
+        filteredData = csvData.filter(row => {
+          return Object.values(row).some(val => String(val).toLowerCase().includes(term));
+        });
+      }
+      currentPage = 1;
+      displayCsvTable();
+    }
+
+    csvTableFilter.addEventListener("input", (e) => {
+      filterCsvTable(e.target.value);
+    });
+
+    csvTablePrevBtn.addEventListener("click", () => {
+      if (currentPage > 1) {
+        currentPage--;
+        displayCsvTable();
+      }
+    });
+
+    csvTableNextBtn.addEventListener("click", () => {
+      const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+      if (currentPage < totalPages) {
+        currentPage++;
+        displayCsvTable();
+      }
+    });
+
+    csvTablePageInput.addEventListener("change", (e) => {
+      currentPage = Math.max(1, parseInt(e.target.value) || 1);
+      displayCsvTable();
+    });
+
+    async function populateCsvTable(csvUrl) {
+      try {
+        const response = await fetch(csvUrl);
+        if (!response.ok) throw new Error("Failed to fetch CSV");
+        const csvText = await response.text();
+
+        // Parse CSV using Papa Parse
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            csvData = results.data;
+            filteredData = [...csvData];
+            currentPage = 1;
+            csvTableFilter.style.display = "block";
+            athenaLoadingSpinner.style.display = 'none';
+            displayCsvTable();
+            
+            // Update KPIs with Athena query results
+            updateKpis(csvData);
+            document.getElementById("dataSource").textContent = "Athena Query Output";
+            s3PathEl.textContent = "-";
+            
+            // Add to run history
+            addToRunHistory("Athena Query Output", csvData, "-");
+          },
+          error: (err) => {
+            console.error("CSV parsing error:", err);
+            pipelineLogsEl.textContent = `Error parsing CSV: ${err.message}`;
+            athenaLoadingSpinner.style.display = 'none';
+          }
+        });
+      } catch (err) {
+        console.error("Error fetching CSV:", err);
+        pipelineLogsEl.textContent = `Error fetching CSV: ${err.message}`;
+        athenaLoadingSpinner.style.display = 'none';
+      }
+    }
+
     async function triggerAthenaQuery() {
       athenaQueryRunning = true;
       runQueryBtn.disabled = true;
       queryDownloadLink.style.display = 'none';
+      csvTableContainer.style.display = 'none';
+      athenaLoadingSpinner.style.display = 'flex';
 
       // write to pipeline log area so user knows what's happening
       pipelineLogsEl.textContent = "Starting Athena query...";
@@ -585,18 +877,22 @@
           pipelineLogsEl.textContent = `Query submitted (id=${body.query_execution_id}).`;
           const href = `/api/athena/download?execution_id=${body.query_execution_id}`;
           queryDownloadLink.href = href;
-          queryDownloadLink.textContent = 'Download CSV';
+          queryDownloadLink.textContent = 'Download Full CSV';
           queryDownloadLink.style.display = 'inline';
           downloadCsvBtn.disabled = false;
           downloadCsvBtn.onclick = () => window.open(href, '_blank');
+          // Populate the table with CSV data
+          await populateCsvTable(href);
         } else {
           const message = body.detail || "Unable to run query.";
           pipelineLogsEl.textContent = `Query error: ${message}`;
           pipelineStatusEl.textContent = `Error: ${message}`;
+          athenaLoadingSpinner.style.display = 'none';
         }
       } catch (err) {
         pipelineLogsEl.textContent = "Query error: unable to reach server.";
         pipelineStatusEl.textContent = "Error: Unable to run query.";
+        athenaLoadingSpinner.style.display = 'none';
       } finally {
         runQueryBtn.disabled = false;
         athenaQueryRunning = false;
