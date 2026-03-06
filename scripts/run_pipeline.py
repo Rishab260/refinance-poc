@@ -19,7 +19,8 @@ GLUE_CRAWLER_NAME = "refi-ready-crawler"
 ENTITY_RESOLUTION_SCHEMA_NAME = "borrower_schema_v3"
 ENTITY_RESOLUTION_WORKFLOW_NAME = "borrower_matching_workflow_v3"
 ATHENA_OUTPUT_LOCATION = f"s3://{S3_BUCKET_NAME}/athena-results/"
-FINAL_OUTPUT_LOCATION = f"s3://{S3_BUCKET_NAME}/output/"
+FINAL_OUTPUT_LOCATION = f"s3://{S3_BUCKET_NAME}/output/"  # Full pipeline output
+ATHENA_ONLY_OUTPUT_LOCATION = f"s3://{S3_BUCKET_NAME}/output/athena/"  # Query-only output
 SOURCE_TABLES = [
     "borrower_information_csv",
     "loan_information_csv",
@@ -305,6 +306,58 @@ def start_glue_crawler(glue_client, crawler_name):
     
     logging.info("Glue crawler run completed successfully.")
 
+def create_entity_resolution_results_table(glue_client, database, bucket_name):
+    """Create a Glue external table for Entity Resolution matching results."""
+    table_name = "entity_resolution_results"
+    try:
+        glue_client.delete_table(DatabaseName=database, Name=table_name)
+        logging.info(f"Deleted existing Glue table: {table_name}")
+    except glue_client.exceptions.EntityNotFoundException:
+        pass
+    
+    try:
+        glue_client.create_table(
+            DatabaseName=database,
+            TableInput={
+                "Name": table_name,
+                "TableType": "EXTERNAL_TABLE",
+                "Parameters": {
+                    "EXTERNAL": "TRUE",
+                    "classification": "csv",
+                    "skip.header.line.count": "1",
+                },
+                "StorageDescriptor": {
+                    "Columns": [
+                        {"Name": "input_source_arn", "Type": "string"},
+                        {"Name": "match_rule", "Type": "string"},
+                        {"Name": "borrower_id", "Type": "bigint"},
+                        {"Name": "email", "Type": "string"},
+                        {"Name": "phone", "Type": "string"},
+                        {"Name": "property_id", "Type": "bigint"},
+                        {"Name": "record_id", "Type": "string"},
+                        {"Name": "match_id", "Type": "string"},
+                    ],
+                    "Location": f"s3://{bucket_name}/resolved/",
+                    "InputFormat": "org.apache.hadoop.mapred.TextInputFormat",
+                    "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+                    "SerdeInfo": {
+                        "SerializationLibrary": "org.apache.hadoop.hive.serde2.OpenCSVSerde",
+                        "Parameters": {
+                            "separatorChar": ",",
+                            "quoteChar": '"',
+                            "escapeChar": "\\",
+                        },
+                    },
+                },
+            },
+        )
+        logging.info(f"Created Glue table: {table_name}")
+        time.sleep(2)  # Allow Glue metadata to sync
+        return True
+    except Exception as e:
+        logging.warning(f"Could not create Entity Resolution results table: {e}")
+        return False
+
 def execute_athena_query(athena_client, query, database, output_location):
     """Execute an Athena query and wait for completion."""
     logging.info("Executing Athena query...")
@@ -392,29 +445,60 @@ def validate_source_tables_non_empty(athena_client, database, output_location):
 # ---------------------------------------------------------------------------
 
 def _default_view_sql() -> str:
-    """Return the standard SQL used to create the unified view."""
+    """Return the standard SQL used to create the unified view with Entity Resolution deduplication."""
     return f"""
     CREATE OR REPLACE VIEW unified_refi_dataset AS
+    WITH ranked_borrowers AS (
+        SELECT
+            bi.borrower_id,
+            bi.first_name,
+            bi.last_name,
+            li.current_interest_rate,
+            me.market_rate_offer,
+            me.ltv_ratio,
+            me.monthly_savings_est,
+            be.paperless_billing,
+            be.email_open_last_30d,
+            be.mobile_app_login_last_30d,
+            be.sms_opt_in,
+            CASE 
+                WHEN er.match_id IS NOT NULL THEN er.match_id
+                ELSE CAST(bi.borrower_id AS VARCHAR)
+            END AS match_id,
+            ROW_NUMBER() OVER (
+                PARTITION BY CASE 
+                    WHEN er.match_id IS NOT NULL THEN er.match_id
+                    ELSE CAST(bi.borrower_id AS VARCHAR)
+                END
+                ORDER BY bi.borrower_id
+            ) AS rank
+        FROM
+            borrower_information_csv bi
+        LEFT JOIN
+            entity_resolution_results er ON bi.borrower_id = er.borrower_id
+        INNER JOIN
+            loan_information_csv li ON bi.borrower_id = li.borrower_id
+        INNER JOIN
+            market_equity_csv me ON bi.property_id = me.property_id
+        INNER JOIN
+            borrower_engagement_csv be ON bi.borrower_id = be.borrower_id
+    )
     SELECT
-        bi.borrower_id,
-        bi.first_name,
-        bi.last_name,
-        li.current_interest_rate,
-        me.market_rate_offer,
-        me.ltv_ratio,
-        me.monthly_savings_est,
-        be.paperless_billing,
-        be.email_open_last_30d,
-        be.mobile_app_login_last_30d,
-        be.sms_opt_in
+        borrower_id,
+        first_name,
+        last_name,
+        current_interest_rate,
+        market_rate_offer,
+        ltv_ratio,
+        monthly_savings_est,
+        paperless_billing,
+        email_open_last_30d,
+        mobile_app_login_last_30d,
+        sms_opt_in
     FROM
-        borrower_information_csv bi
-    JOIN
-        loan_information_csv li ON bi.borrower_id = li.borrower_id
-    JOIN
-        market_equity_csv me ON bi.property_id = me.property_id
-    JOIN
-        borrower_engagement_csv be ON bi.borrower_id = be.borrower_id
+        ranked_borrowers
+    WHERE
+        rank = 1
     """
 
 
@@ -491,9 +575,16 @@ def upload_fallback_output_from_data(s3_client, bucket_name, output_prefix):
     market = pd.read_csv("data/market_equity.csv")
     engagement = pd.read_csv("data/borrower_engagement.csv")
 
-    df = borrowers.merge(loans, on=["borrower_id", "property_id"], how="inner")
+    # Merge on borrower_id first
+    df = borrowers.merge(loans, on="borrower_id", how="inner")
+    
+    # Then merge on property_id
     df = df.merge(market, on="property_id", how="inner")
+    
+    # Finally merge engagement data
     df = df.merge(engagement, on="borrower_id", how="inner")
+
+    logging.info(f"Fallback: Merged data contains {len(df)} rows")
 
     df["rate_spread"] = df["current_interest_rate"] - df["market_rate_offer"]
     df["name"] = df["first_name"] + " " + df["last_name"]
@@ -509,6 +600,8 @@ def upload_fallback_output_from_data(s3_client, bucket_name, output_prefix):
         (df["rate_spread"] >= 1.0)
     ][["borrower_id", "name", "rate_spread", "monthly_savings_est", "marketing_category"]].copy()
 
+    logging.info(f"Fallback: After eligibility filter ({len(eligible)} rows)")
+    
     fallback_id = f"fallback-{uuid.uuid4()}"
     output_key = f"{output_prefix.rstrip('/')}/{fallback_id}.csv"
     s3_client.put_object(
@@ -606,20 +699,20 @@ def _run_athena_section(args) -> bool:
         athena_client,
         qualification_query,
         GLUE_DATABASE_NAME,
-        FINAL_OUTPUT_LOCATION,
+        ATHENA_ONLY_OUTPUT_LOCATION,
     )
 
     if query_execution_id and athena_result_has_rows(athena_client, query_execution_id):
-        logging.info(f"Final output is being generated at: {FINAL_OUTPUT_LOCATION}{query_execution_id}.csv")
+        logging.info(f"Final output is being generated at: {ATHENA_ONLY_OUTPUT_LOCATION}{query_execution_id}.csv")
         return True
     elif query_execution_id:
         logging.warning("Athena query succeeded but returned 0 rows. Generating fallback output from source CSVs...")
         fallback_execution_id, fallback_rows = upload_fallback_output_from_data(
             boto3.client("s3", region_name=AWS_REGION),
             S3_BUCKET_NAME,
-            "output",
+            "output/athena",
         )
-        logging.info(f"Fallback output generated with {fallback_rows} rows at: {FINAL_OUTPUT_LOCATION}{fallback_execution_id}.csv")
+        logging.info(f"Fallback output generated with {fallback_rows} rows at: {ATHENA_ONLY_OUTPUT_LOCATION}{fallback_execution_id}.csv")
         return True
     else:
         logging.warning("Could not generate final output due to query failure")
@@ -668,6 +761,9 @@ def main():
         if workflow_ready:
             start_matching_job(er_client, ENTITY_RESOLUTION_WORKFLOW_NAME)
             logging.info("✓ Entity Resolution completed")
+            # Create Glue table for Entity Resolution results to enable deduplication
+            logging.info("Creating Entity Resolution results table...")
+            create_entity_resolution_results_table(glue_client, GLUE_DATABASE_NAME, S3_BUCKET_NAME)
         else:
             logging.warning("Entity Resolution workflow is not available; skipping matching job.")
     except Exception as e:
@@ -677,6 +773,20 @@ def main():
     # 4. Create explicit Athena source tables and validate row counts
     try:
         create_or_replace_glue_source_tables(glue_client, GLUE_DATABASE_NAME)
+        # Ensure ER results table exists even if ER didn't run successfully
+        create_entity_resolution_results_table(glue_client, GLUE_DATABASE_NAME, S3_BUCKET_NAME)
+        time.sleep(3)  # Allow Glue to register table
+        
+        # Validate ER table is accessible via Athena
+        validation_query = f"""
+        SELECT COUNT(*) as er_count FROM entity_resolution_results
+        """
+        try:
+            execute_athena_query(athena_client, validation_query, GLUE_DATABASE_NAME, ATHENA_OUTPUT_LOCATION)
+            logging.info("✓ Entity Resolution results table is accessible")
+        except Exception as e:
+            logging.warning(f"Could not validate ER table via Athena (may be empty or inaccessible): {e}")
+        
         validate_source_tables_non_empty(athena_client, GLUE_DATABASE_NAME, ATHENA_OUTPUT_LOCATION)
     except Exception as e:
         logging.error(f"Stopping pipeline: {e}")

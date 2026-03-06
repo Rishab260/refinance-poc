@@ -75,7 +75,7 @@ Typical Duration: 2-4 minutes
 
 ---
 
-### **Phase 2.5: Entity Resolution (Identity Matching)**
+### **Phase 2.5: Entity Resolution (Identity Matching & Deduplication)**
 
 #### What We Do:
 ```
@@ -83,23 +83,50 @@ Cataloged Borrower Records
     ↓
 AWS Entity Resolution Matching Workflow
     ↓
-Canonical Borrower Identity Output
+Match ID Groups (Identifies Duplicate Records)
+    ↓
+Glue Table for Resolution Results
+    ↓
+SQL Ranking & Deduplication (Unified View)
 ```
 
 #### How It Works:
-1. Configure schema mapping for borrower identity attributes
-2. Run Entity Resolution matching workflow on cataloged source data
-3. Generate match output to consolidate duplicate/fragmented identities
-4. Use canonical identities as a trusted layer for downstream analysis
+
+**Step 1: Configure Entity Resolution**
+- Define schema mapping for borrower identity attributes (email, phone, borrower_id, property_id)
+- Create matching workflow with rule-based matching on email and phone
+- Run Entity Resolution matching job on all cataloged borrower records
+
+**Step 2: Generate Match Output**
+- AWS Entity Resolution produces match results with:
+  - `match_id`: Canonical identifier grouping duplicate borrowers together
+  - `record_id`: Original record identifier
+  - `borrower_id`, `email`, `phone`, `property_id`: Original attributes
+- Output stored at: `s3://refi-ready-poc-dev/resolved/`
+
+**Step 3: Register Results as Glue Table**
+- Create Glue external table pointing to resolved output
+- Table name: `entity_resolution_results`
+- Enables SQL queries to use match identities in Athena
+
+**Step 4: Deduplicate in Unified View**
+- The `unified_refi_dataset` view uses:
+  - LEFT JOIN to entity_resolution_results on borrower_id
+  - COALESCE(match_id, borrower_id) to group duplicates
+  - ROW_NUMBER() to rank borrowers within each match group
+  - WHERE rank = 1 to select one representative per group
 
 #### Why This Matters:
-- Prevents duplicate borrowers from being targeted multiple times
-- Improves join accuracy before refinance eligibility logic runs
-- Creates a more reliable "single borrower" view for marketing activation
-- Improves governance through explicit identity matching artifacts
+- **Prevents duplicate targeting**: Multiple records for same person are consolidated
+- **Improves data quality**: Identifies and groups variations (e.g., "Jon" vs "John" Smith)
+- **Reduces wasted marketing spend**: Each unique borrower appears once in output
+- **Creates "single customer view"**: Essential for accurate refinance opportunity analysis
+- **Enables governance**: Explicit match_id artifacts for compliance/audit purposes
 
 #### Code Location:
-`scripts/check_entity_resolution.py`
+- Workflow creation: `scripts/run_pipeline.py` → `create_entity_resolution_workflow()`
+- Job execution: `scripts/run_pipeline.py` → `start_matching_job()`
+- Results table: `scripts/run_pipeline.py` → `create_entity_resolution_results_table()`
 
 ---
 
@@ -118,40 +145,60 @@ Refinance Eligibility Query
 Qualified Borrower File
 ```
 
-#### Step 3A: Create Unified View
+#### Step 3A: Create Unified View with Deduplication
 
 **SQL Query:**
 ```sql
 CREATE OR REPLACE VIEW unified_refi_dataset AS
+WITH ranked_borrowers AS (
+    SELECT
+        bi.borrower_id,
+        bi.first_name,
+        bi.last_name,
+        li.current_interest_rate,
+        me.market_rate_offer,
+        me.ltv_ratio,
+        me.monthly_savings_est,
+        be.paperless_billing,
+        be.email_open_last_30d,
+        be.mobile_app_login_last_30d,
+        be.sms_opt_in,
+        COALESCE(er.match_id, CAST(bi.borrower_id AS VARCHAR)) AS match_id,
+        ROW_NUMBER() OVER (PARTITION BY COALESCE(er.match_id, CAST(bi.borrower_id AS VARCHAR)) ORDER BY bi.borrower_id) AS rank
+    FROM borrower_information_csv bi
+    LEFT JOIN entity_resolution_results er ON bi.borrower_id = er.borrower_id
+    JOIN loan_information_csv li ON bi.borrower_id = li.borrower_id
+    JOIN market_equity_csv me ON bi.property_id = me.property_id
+    JOIN borrower_engagement_csv be ON bi.borrower_id = be.borrower_id
+)
 SELECT
-    bi.borrower_id,
-    bi.first_name,
-    bi.last_name,
-    li.current_interest_rate,           -- From loan table
-    me.market_rate_offer,               -- 2026 market condition
-    me.ltv_ratio,                       -- Property equity level
-    me.monthly_savings_est,             -- Potential savings
-    be.paperless_billing,               -- Engagement signal
-    be.email_open_last_30d,             -- Recent engagement
-    be.mobile_app_login_last_30d,       -- Recent engagement
-    be.sms_opt_in                       -- Engagement signal
-FROM borrower_information_csv bi
-JOIN loan_information_csv li 
-    ON bi.borrower_id = li.borrower_id
-JOIN market_equity_csv me 
-    ON bi.property_id = me.property_id
-JOIN borrower_engagement_csv be 
-    ON bi.borrower_id = be.borrower_id
+    borrower_id, first_name, last_name, current_interest_rate,
+    market_rate_offer, ltv_ratio, monthly_savings_est,
+    paperless_billing, email_open_last_30d, mobile_app_login_last_30d, sms_opt_in
+FROM ranked_borrowers
+WHERE rank = 1
 ```
 
-**How This Links Data:**
-- **Borrower Identity** (first_name, last_name) from borrower_information
-- **Canonical Identity Layer** from Entity Resolution match output
-- **Current Loan Terms** (current_interest_rate) from loan_information
-- **2026 Market Opportunity** (market_rate_offer, ltv_ratio, savings) from market_equity
-- **Customer Engagement** (paperless, email, app, SMS) from borrower_engagement
-- **Joins** link these via borrower_id and property_id
-- **Entity Resolution mapping** reduces duplicate/fragmented borrower joins
+**How This Links & Deduplicates Data:**
+- **Entity Resolution LEFT JOIN**: Groups duplicate records via match_id
+- **COALESCE Fallback**: Uses borrower_id if no match found (single records)
+- **ROW_NUMBER() Ranking**: Assigns rank within each match group (1 = first, 2 = second, etc.)
+- **WHERE rank = 1**: Selects only one representative per group
+- **Current Loan Terms**: From loan_information (inner join keeps complete data)
+- **2026 Market Opportunity**: From market_equity (property-level data)
+- **Customer Engagement**: From borrower_engagement (email/app/SMS signals)
+
+**Example With Duplicates:**
+```
+Input (61 rows): B001, B002, B003... B052(duplicate of B001), B053(duplicate of B018)...
+        ↓ [Entity Resolution identifies matches]
+match_id groups:
+  - match_001: [B001, B052] → rank 1 = B001, rank 2 = B052
+  - match_002: [B018, B053] → rank 1 = B018, rank 2 = B053
+  - match_003: [B003] → rank 1 = B003
+        ↓ [WHERE rank = 1]
+Output (51 unique): B001, B003, B018... (B052, B053 filtered out)
+```
 
 **Why This View?**
 - Single source of truth for refi analysis
@@ -204,7 +251,7 @@ WHERE
 **Performance Characteristics:**
 - **Data Source**: Glue Data Catalog tables in S3 + Entity Resolution identity mapping output
 - **Query Engine**: Amazon Athena (distributed SQL on S3)
-- **Output Location**: `s3://refi-ready-poc-dev/output/`
+- **Output Location**: `s3://refi-ready-poc-dev/output/athena/`
 - **Typical Duration**: 5-10 seconds per query
 - **No infrastructure to manage**: Fully serverless
 
@@ -223,7 +270,7 @@ Results → S3 CSV File
 
 #### Output File Structure
 
-**File Location**: `s3://refi-ready-poc-dev/output/{execution_id}.csv`
+**File Location**: `s3://refi-ready-poc-dev/output/athena/{execution_id}.csv`
 
 **Columns**:
 ```
@@ -326,7 +373,7 @@ The CSV becomes the "refi-ready" audience file that can be:
     [Athena Output Format: CSV]
             ↓
     S3 Output Zone
-    s3://refi-ready-poc-dev/output/{query_execution_id}.csv
+    s3://refi-ready-poc-dev/output/athena/{query_execution_id}.csv
             ↓
     "Refi-Ready" Borrower Audience File
     - Ready for marketing import
@@ -467,7 +514,7 @@ START: 2026-02-20 20:13:08
 │  └─ Eligibility query: 5 seconds
 │
 └─ PHASE 4: Results generated ✓
-   └─ Output: s3://refi-ready-poc-dev/output/6efa3e3e-2b0b-44c8-84ac-bf118a9fb49a.csv
+└─ Output: s3://refi-ready-poc-dev/output/athena/6efa3e3e-2b0b-44c8-84ac-bf118a9fb49a.csv
    
 END: 2026-02-20 20:24:59
 TOTAL TIME: ~12 minutes (mostly Glue crawler)

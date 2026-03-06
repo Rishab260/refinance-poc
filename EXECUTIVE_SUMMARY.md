@@ -105,7 +105,14 @@ B001,John,Doe,5.5%,4.0%,250,true,...
 
 ### Where Entity Resolution Fits
 
-Entity Resolution runs as a dedicated identity-matching stage in the pipeline on borrower attributes (email + phone) and writes a resolved output back to S3. In this POC, Athena joins continue to reference the raw tables so we can validate Entity Resolution end-to-end while keeping analytics logic stable. The resolved output is ready for the next iteration where joins can use canonical identities for de-duplication and clustering before eligibility evaluation.
+Entity Resolution runs as a dedicated identity-matching stage in the pipeline on borrower attributes (email + phone) and writes a resolved output back to S3. The unified_refi_dataset view then integrates this resolved output:
+
+1. **LEFT JOINs** the Entity Resolution results table to borrower records
+2. **Groups** duplicate records using match_id (e.g., "John Smith" + "Jon Smith" both with email john.smith@example.com get same match_id)
+3. **Ranks** borrowers within each match group using ROW_NUMBER()
+4. **Selects** only rank=1 (one representative per match group)
+
+**Result**: Deduplication happens automatically in Athena SQL. Input with 61 borrowers becomes 51 unique borrowers in the output.
 
 ### Why This Approach Works
 - ✓ **Scalable**: Handles 31 borrowers to millions
@@ -239,7 +246,7 @@ B004: 0.3% spread → Ineligible (not enough savings)
 
 ### The Output File Format
 
-**Location**: `s3://refi-ready-poc-dev/output/{execution_id}.csv`
+**Location**: `s3://refi-ready-poc-dev/output/athena/{execution_id}.csv`
 
 **Columns**:
 ```csv
@@ -299,7 +306,7 @@ Every time the pipeline runs, Athena generates a unique execution ID:
 
 This becomes the filename:
 ```
-s3://refi-ready-poc-dev/output/{execution_id}.csv
+s3://refi-ready-poc-dev/output/athena/{execution_id}.csv
 ```
 
 Benefits:
@@ -415,7 +422,7 @@ PHASE 4: GENERATE AUDIENCE FILE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
      Output to S3
-     s3://refi-ready-poc-dev/output/{execution_id}.csv
+     s3://refi-ready-poc-dev/output/athena/{execution_id}.csv
     
     File Content:
     borrower_id,name,rate_spread,monthly_savings_est,marketing_category

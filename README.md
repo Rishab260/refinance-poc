@@ -62,7 +62,7 @@ bash launch_web_dashboard.sh
 ```
 
 - URL: `http://127.0.0.1:8000`
-- Reads latest pipeline CSV from `s3://refi-ready-poc-dev/output/`
+- Reads latest pipeline CSV from `s3://refi-ready-poc-dev/output/athena/`
 - Fallback path derives a dataset from `s3://refi-ready-poc-dev/raw/` if needed
 - **Custom queries**: Frontend filters send requests to the new `/api/data` endpoint so you can programmatically retrieve records filtered by marketing category, LTV range and rate spread range. Example:
 

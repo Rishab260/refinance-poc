@@ -7,6 +7,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- Tabulator -->
+  <link href="https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css" rel="stylesheet">
+  <script type="text/javascript" src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800">
   <!-- loading spinner shown while data is being fetched -->
@@ -23,11 +26,11 @@
           <h1 class="text-2xl font-bold text-slate-900">Refi-Ready Borrower Dashboard</h1>
           <p class="text-sm text-slate-600 mt-1">Pipeline findings for refinance opportunities</p>
           <p class="text-xs text-slate-500 mt-1">Data Source: 
-            <select id="dataSourceDropdown" class="inline-block bg-transparent border-b border-slate-500 text-slate-700 font-medium focus:outline-none cursor-pointer">
-              <option value="current">Current</option>
+            <select id="dataSourceDropdown" class="inline-block bg-white border border-slate-300 rounded px-2 py-1 text-slate-700 font-medium focus:outline-none focus:border-sky-500 cursor-pointer hover:border-slate-400 transition-colors">
+              <option value="current">📊 Current Dashboard Data</option>
             </select>
-            <span id="dataSource"></span>
           </p>
+          <p class="text-xs text-slate-500 mt-1">File: <span id="dataSource" class="font-medium text-slate-700">-</span></p>
           <p class="text-xs text-slate-500 mt-1">S3 Path: <span id="s3Path">-</span></p>
           <p class="text-xs text-slate-500 mt-1">Pipeline Status: <span id="pipelineStatus">Checking...</span></p>
           <p class="text-xs text-slate-500 mt-1">Pipeline Message: <span id="pipelineMessage">N/A</span></p>
@@ -154,10 +157,34 @@
       </div>
     </section>
 
+    <!-- Pipeline Final Output Table -->
     <section class="mb-6">
-      <h2 class="font-semibold mb-3">Athena Query Result</h2>
-      <div class="flex gap-2 items-center mb-4">
-        <a id="queryDownloadLink" class="text-sm text-sky-600 underline" href="#" target="_blank" style="display:none;">Download Full CSV</a>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold">Pipeline Final Output</h2>
+        <div class="flex gap-2 items-center">
+          <button id="exportPipelineBtn" class="text-xs text-sky-600 hover:text-sky-700 font-medium px-3 py-1 border border-sky-600 rounded" style="display:none;">
+            Export CSV
+          </button>
+          <button id="togglePipelineTableBtn" class="text-sm text-sky-600 hover:text-sky-700 font-medium">
+            <span id="pipelineTableToggleText">Show Table</span>
+          </button>
+        </div>
+      </div>
+      
+      <div id="pipelineTableContainer" class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm" style="display:none;">
+        <div id="pipelineTable"></div>
+      </div>
+    </section>
+
+    <section class="mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold">Athena Query Result</h2>
+        <div class="flex gap-2 items-center">
+          <a id="queryDownloadLink" class="text-sm text-sky-600 underline" href="#" target="_blank" style="display:none;">Download Full CSV</a>
+          <button id="exportAthenaBtn" class="text-xs text-sky-600 hover:text-sky-700 font-medium px-3 py-1 border border-sky-600 rounded" style="display:none;">
+            Export CSV
+          </button>
+        </div>
       </div>
 
       <!-- Athena Loading Spinner -->
@@ -168,99 +195,200 @@
       
       <!-- CSV Results Table -->
       <div id="csvTableContainer" class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm" style="display:none;">
-        <div class="mb-4">
-          <input id="csvTableFilter" type="text" placeholder="Search table..." class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" style="display:none;" />
-        </div>
-        <div class="overflow-x-auto">
-          <table id="csvTable" class="w-full text-sm border-collapse">
-            <thead id="csvTableHead" class="bg-slate-100 border-b border-slate-300">
-            </thead>
-            <tbody id="csvTableBody" class="divide-y divide-slate-200">
-            </tbody>
-          </table>
-        </div>
-        <div class="mt-4 flex items-center justify-between">
-          <span id="csvTableInfo" class="text-xs text-slate-600"></span>
-          <div class="flex gap-2 items-center">
-            <button id="csvTablePrevBtn" class="rounded-md bg-slate-600 px-3 py-1 text-xs font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">← Previous</button>
-            <input id="csvTablePageInput" type="number" min="1" value="1" class="w-12 rounded-md border border-slate-300 px-2 py-1 text-xs text-center" />
-            <span class="text-xs text-slate-600">of <span id="csvTableTotalPages">0</span></span>
-            <button id="csvTableNextBtn" class="rounded-md bg-slate-600 px-3 py-1 text-xs font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">Next →</button>
-          </div>
-        </div>
+        <div id="csvTable"></div>
       </div>
     </section>
   </div>
 
   <script>
     const dashboardData = JSON.parse({{ data_json | tojson }});
-    const allRecords = dashboardData.records || [];
+    let allRecords = dashboardData.records || [];
     document.getElementById("dataSource").textContent = dashboardData.source_key || "N/A";
     document.getElementById("s3Path").textContent = dashboardData.s3_path || "-";
     const pipelineStatusEl = document.getElementById("pipelineStatus");
 
-    // Data Source History Management
+    // Data Source Management - S3 Files
     const dataSourceDropdown = document.getElementById("dataSourceDropdown");
     const s3PathEl = document.getElementById("s3Path");
-    let runHistory = [];
-    const maxHistoryItems = 10;
+    const dataSourceEl = document.getElementById("dataSource");
+    let s3FilesList = [];
+    let isLoadingDataSource = false;
 
-    function addToRunHistory(dataSource, csvData, s3Path = "-") {
-      const timestamp = new Date().toLocaleString();
-      const entry = {
-        id: Date.now(),
-        label: `${dataSource} - ${timestamp}`,
-        timestamp: timestamp,
-        dataSource: dataSource,
-        csvData: csvData,
-        s3Path: s3Path
-      };
-      runHistory.unshift(entry);
-      if (runHistory.length > maxHistoryItems) {
-        runHistory.pop();
+    async function fetchS3Files() {
+      try {
+        const response = await fetch("/api/s3/files");
+        if (!response.ok) throw new Error("Failed to fetch S3 files");
+        const data = await response.json();
+        s3FilesList = data.files || [];
+        populateDataSourceDropdown();
+      } catch (err) {
+        console.error("Error fetching S3 files:", err);
+        pipelineLogsEl.textContent = `Error loading S3 files: ${err.message}`;
       }
-      updateDataSourceDropdown();
     }
 
-    function updateDataSourceDropdown() {
-      // Clear existing options except the first one
-      while (dataSourceDropdown.options.length > 1) {
-        dataSourceDropdown.remove(1);
-      }
-      
-      // Add recent runs
-      runHistory.forEach((entry) => {
-        const option = document.createElement("option");
-        option.value = entry.id;
-        option.textContent = entry.label;
-        dataSourceDropdown.appendChild(option);
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function formatTimestamp(isoString) {
+      if (!isoString) return '';
+      const date = new Date(isoString);
+      return date.toLocaleString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit' 
       });
     }
 
-    function restoreRun(runId) {
-      if (runId === "current") {
-        s3PathEl.textContent = "-";
+    function populateDataSourceDropdown() {
+      // Clear existing options
+      dataSourceDropdown.innerHTML = '';
+      
+      // Add current option
+      const currentOption = document.createElement("option");
+      currentOption.value = "current";
+      currentOption.textContent = "📊 Current Dashboard Data";
+      dataSourceDropdown.appendChild(currentOption);
+      
+      if (s3FilesList.length === 0) {
+        const noFilesOption = document.createElement("option");
+        noFilesOption.value = "";
+        noFilesOption.textContent = "No files available";
+        noFilesOption.disabled = true;
+        dataSourceDropdown.appendChild(noFilesOption);
         return;
       }
+
+      // Group files by source type
+      const pipelineFiles = s3FilesList.filter(f => f.source_type === "Pipeline");
+      const queryFiles = s3FilesList.filter(f => f.source_type === "Query");
+
+      // Add Pipeline section
+      if (pipelineFiles.length > 0) {
+        const pipelineHeader = document.createElement("option");
+        pipelineHeader.value = "";
+        pipelineHeader.textContent = "—————— Pipeline Outputs ——————";
+        pipelineHeader.disabled = true;
+        pipelineHeader.style.fontWeight = "bold";
+        pipelineHeader.style.backgroundColor = "#f1f5f9";
+        dataSourceDropdown.appendChild(pipelineHeader);
+
+        pipelineFiles.slice(0, 15).forEach(file => {
+          const option = document.createElement("option");
+          option.value = file.key;
+          option.textContent = `🔄 ${formatTimestamp(file.last_modified)} • ${formatFileSize(file.size)}`;
+          option.setAttribute('data-filename', file.filename);
+          dataSourceDropdown.appendChild(option);
+        });
+      }
+
+      // Add Query section
+      if (queryFiles.length > 0) {
+        const queryHeader = document.createElement("option");
+        queryHeader.value = "";
+        queryHeader.textContent = "—————— Query Results ——————";
+        queryHeader.disabled = true;
+        queryHeader.style.fontWeight = "bold";
+        queryHeader.style.backgroundColor = "#f1f5f9";
+        dataSourceDropdown.appendChild(queryHeader);
+
+        queryFiles.slice(0, 15).forEach(file => {
+          const option = document.createElement("option");
+          option.value = file.key;
+          option.textContent = `🔍 ${formatTimestamp(file.last_modified)} • ${formatFileSize(file.size)}`;
+          option.setAttribute('data-filename', file.filename);
+          dataSourceDropdown.appendChild(option);
+        });
+      }
+
+      // Add refresh option at the end
+      const refreshOption = document.createElement("option");
+      refreshOption.value = "refresh";
+      refreshOption.textContent = "↻ Refresh File List";
+      refreshOption.style.fontStyle = "italic";
+      refreshOption.style.backgroundColor = "#e0f2fe";
+      dataSourceDropdown.appendChild(refreshOption);
+    }
+
+    async function loadS3File(key) {
+      if (isLoadingDataSource) return;
       
-      const entry = runHistory.find(r => r.id == runId);
-      if (entry) {
-        csvData = entry.csvData;
-        filteredData = [...csvData];
-        currentPage = 1;
-        csvTableFilter.style.display = "block";
-        csvTableContainer.style.display = "block";
-        displayCsvTable();
-        updateKpis(csvData);
-        document.getElementById("dataSource").textContent = entry.dataSource;
-        s3PathEl.textContent = entry.s3Path;
-        pipelineLogsEl.textContent = `Restored: ${entry.dataSource} from ${entry.timestamp}`;
+      isLoadingDataSource = true;
+      showLoading();
+      dataSourceDropdown.disabled = true;
+
+      try {
+        const response = await fetch(`/api/s3/load?key=${encodeURIComponent(key)}`);
+        
+        if (!response.ok) {
+          // Try to get error detail from response
+          let errorMsg = "Failed to load file";
+          try {
+            const errorData = await response.json();
+            errorMsg = errorData.detail || errorMsg;
+          } catch (e) {
+            errorMsg = await response.text() || errorMsg;
+          }
+          throw new Error(errorMsg);
+        }
+        
+        const data = await response.json();
+        
+        // Update global records
+        allRecords.length = 0;
+        allRecords.push(...data.records);
+        
+        // Update UI
+        dataSourceEl.textContent = key.split('/').pop();
+        s3PathEl.textContent = data.s3_path || key;
+        
+        // Update dashboard with the loaded data (don't fetch from server)
+        updateDashboardWithCurrentData();
+        
+        // Reinitialize pipeline table if visible
+        if (pipelineTableVisible && pipelineTableInstance) {
+          initializePipelineTable();
+        }
+        
+        pipelineLogsEl.textContent = `Loaded: ${key.split('/').pop()} (${data.records.length} borrowers)`;
+        
+      } catch (err) {
+        console.error("Error loading S3 file:", err);
+        pipelineLogsEl.textContent = `Error loading file: ${err.message}`;
+        alert(`Failed to load file: ${err.message}`);
+      } finally {
+        isLoadingDataSource = false;
+        hideLoading();
+        dataSourceDropdown.disabled = false;
       }
     }
 
-    dataSourceDropdown.addEventListener("change", (e) => {
-      restoreRun(e.target.value);
+    dataSourceDropdown.addEventListener("change", async (e) => {
+      const value = e.target.value;
+      
+      if (value === "current") {
+        // Reload page to get current data
+        window.location.reload();
+      } else if (value === "refresh") {
+        // Refresh the file list
+        showLoading();
+        await fetchS3Files();
+        hideLoading();
+        dataSourceDropdown.value = "current";
+      } else if (value) {
+        // Load the selected file
+        await loadS3File(value);
+      }
     });
+
+    // Load S3 files on page load
+    fetchS3Files();
 
     // loading overlay helpers
     const loadingOverlay = document.getElementById('loadingOverlay');
@@ -534,14 +662,24 @@
       updateTopSavingsChart(records);
       updateHeatmap(records);
       
-      // Add to run history if we have server data
-      if (serverPayload && serverPayload.records) {
-        const dataSourceName = serverPayload.source_key || "Pipeline Data";
-        const s3Path = serverPayload.s3_path || "-";
-        addToRunHistory(dataSourceName, records, s3Path);
-      }
-      
       hideLoading();
+    }
+
+    function updateDashboardWithCurrentData() {
+      // Update dashboard with current allRecords data (used when loading from S3)
+      // clear existing charts
+      Object.values(chartStore).forEach((c) => c && c.destroy());
+      
+      updateRangeLabels();
+      updateShareLink();
+      
+      // Use current allRecords filtered by current filter settings
+      const records = getFilteredRecords();
+      updateKpis(records);
+      updateCategoryChart(records);
+      updateScatterChart(records);
+      updateTopSavingsChart(records);
+      updateHeatmap(records);
     }
 
     function renderPipelineStatus(status) {
@@ -570,6 +708,8 @@
 
       if (status.status === "succeeded" && status.source_key) {
         document.getElementById("dataSource").textContent = status.source_key;
+        // Refresh S3 file list to show new pipeline output
+        fetchS3Files();
       }
     }
 
@@ -695,98 +835,69 @@
 
     filtersHeader.addEventListener("click", toggleFilters);
 
-    // CSV Table Management
-    let csvData = [];
-    const rowsPerPage = 10;
-    let currentPage = 1;
-    let filteredData = [];
-
-    const csvTableContainer = document.getElementById("csvTableContainer");
-    const csvTable = document.getElementById("csvTable");
-    const csvTableHead = document.getElementById("csvTableHead");
-    const csvTableBody = document.getElementById("csvTableBody");
-    const csvTableFilter = document.getElementById("csvTableFilter");
-    const csvTableInfo = document.getElementById("csvTableInfo");
-    const csvTablePageInput = document.getElementById("csvTablePageInput");
-    const csvTablePrevBtn = document.getElementById("csvTablePrevBtn");
-    const csvTableNextBtn = document.getElementById("csvTableNextBtn");
-    const csvTableTotalPages = document.getElementById("csvTableTotalPages");
+    // Tabulator Tables
+    let pipelineTableInstance = null;
+    let csvTableInstance = null;
     const athenaLoadingSpinner = document.getElementById("athenaLoadingSpinner");
+    const exportPipelineBtn = document.getElementById("exportPipelineBtn");
+    const exportAthenaBtn = document.getElementById("exportAthenaBtn");
 
     // Engagement inputs (if they exist on the page)
     const engagementInputs = {};
 
-    function displayCsvTable() {
-      if (filteredData.length === 0) {
-        csvTableContainer.style.display = "none";
-        return;
-      }
-
+    function initializeCsvTable(data) {
+      const csvTableContainer = document.getElementById("csvTableContainer");
       csvTableContainer.style.display = "block";
-      const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-      csvTableTotalPages.textContent = totalPages;
+      exportAthenaBtn.style.display = "inline-block";
 
-      // Clamp page number
-      if (currentPage > totalPages) currentPage = totalPages;
-      if (currentPage < 1) currentPage = 1;
-      csvTablePageInput.value = currentPage;
-
-      const start = (currentPage - 1) * rowsPerPage;
-      const end = Math.min(start + rowsPerPage, filteredData.length);
-      const pageData = filteredData.slice(start, end);
-
-      // Create header
-      if (csvData.length > 0 && pageData.length > 0) {
-        const headers = Object.keys(pageData[0]);
-        csvTableHead.innerHTML = `<tr class="bg-slate-100">${headers.map(h => `<th class="px-4 py-2 text-left font-semibold text-slate-700 border-b border-slate-300">${h}</th>`).join("")}</tr>`;
-
-        // Create body rows
-        csvTableBody.innerHTML = pageData.map((row, idx) => {
-          return `<tr class="hover:bg-slate-50">${Object.values(row).map(v => `<td class="px-4 py-2 border-b border-slate-200 text-slate-800">${v}</td>`).join("")}</tr>`;
-        }).join("");
+      if (csvTableInstance) {
+        csvTableInstance.destroy();
       }
 
-      csvTableInfo.textContent = `Showing ${start + 1} to ${end} of ${filteredData.length} rows`;
-      csvTablePrevBtn.disabled = currentPage === 1;
-      csvTableNextBtn.disabled = currentPage === totalPages;
+      // Auto-generate columns from data
+      const columns = Object.keys(data[0] || {}).map(key => ({
+        title: key,
+        field: key,
+        headerFilter: "input",
+        headerFilterPlaceholder: `Filter ${key}...`,
+        sorter: "string",
+        width: 150,
+        formatter: function(cell) {
+          const value = cell.getValue();
+          // Format numbers with $ sign if they look like currency
+          if (key.includes('savings') || key.includes('payment')) {
+            const num = parseFloat(value);
+            if (!isNaN(num)) {
+              return '$' + num.toFixed(0);
+            }
+          }
+          // Format rates as percentages
+          if (key.includes('rate') || key.includes('ltv')) {
+            const num = parseFloat(value);
+            if (!isNaN(num) && num < 10) {
+              return num.toFixed(2) + '%';
+            }
+          }
+          return value;
+        }
+      }));
+
+      csvTableInstance = new Tabulator("#csvTable", {
+        data: data,
+        columns: columns,
+        layout: "fitDataFill",
+        pagination: true,
+        paginationSize: 10,
+        paginationSizeSelector: [10, 25, 50, 100],
+        movableColumns: true,
+        resizableColumns: true,
+        initialSort: [
+          {column: "monthly_savings_est", dir: "desc"}
+        ],
+        headerFilterLiveFilterDelay: 600,
+        placeholder: "No Data",
+      });
     }
-
-    function filterCsvTable(searchTerm) {
-      if (!searchTerm.trim()) {
-        filteredData = [...csvData];
-      } else {
-        const term = searchTerm.toLowerCase();
-        filteredData = csvData.filter(row => {
-          return Object.values(row).some(val => String(val).toLowerCase().includes(term));
-        });
-      }
-      currentPage = 1;
-      displayCsvTable();
-    }
-
-    csvTableFilter.addEventListener("input", (e) => {
-      filterCsvTable(e.target.value);
-    });
-
-    csvTablePrevBtn.addEventListener("click", () => {
-      if (currentPage > 1) {
-        currentPage--;
-        displayCsvTable();
-      }
-    });
-
-    csvTableNextBtn.addEventListener("click", () => {
-      const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-      if (currentPage < totalPages) {
-        currentPage++;
-        displayCsvTable();
-      }
-    });
-
-    csvTablePageInput.addEventListener("change", (e) => {
-      currentPage = Math.max(1, parseInt(e.target.value) || 1);
-      displayCsvTable();
-    });
 
     async function populateCsvTable(csvUrl) {
       try {
@@ -799,20 +910,16 @@
           header: true,
           skipEmptyLines: true,
           complete: (results) => {
-            csvData = results.data;
-            filteredData = [...csvData];
-            currentPage = 1;
-            csvTableFilter.style.display = "block";
             athenaLoadingSpinner.style.display = 'none';
-            displayCsvTable();
+            initializeCsvTable(results.data);
             
             // Update KPIs with Athena query results
-            updateKpis(csvData);
+            updateKpis(results.data);
             document.getElementById("dataSource").textContent = "Athena Query Output";
             s3PathEl.textContent = "-";
             
-            // Add to run history
-            addToRunHistory("Athena Query Output", csvData, "-");
+            // Refresh S3 file list to show new query result
+            fetchS3Files();
           },
           error: (err) => {
             console.error("CSV parsing error:", err);
@@ -898,6 +1005,110 @@
         athenaQueryRunning = false;
       }
     }
+
+    // Pipeline Output Table Management
+    const pipelineTableContainer = document.getElementById("pipelineTableContainer");
+    const togglePipelineTableBtn = document.getElementById("togglePipelineTableBtn");
+    const pipelineTableToggleText = document.getElementById("pipelineTableToggleText");
+    let pipelineTableVisible = false;
+
+    function initializePipelineTable() {
+      if (pipelineTableInstance) {
+        pipelineTableInstance.destroy();
+      }
+
+      const pipelineData = allRecords.map(record => ({
+        borrower_id: record.borrower_id || '',
+        full_name: record.full_name || '',
+        rate_spread: record.rate_spread || '',
+        monthly_savings_est: record.monthly_savings_est || '',
+        marketing_category: record.marketing_category || '',
+        ltv_ratio: record.ltv_ratio || '',
+        current_interest_rate: record.current_interest_rate || '',
+        market_rate_offer: record.market_rate_offer || '',
+        engagement_score: record.engagement_score || ''
+      }));
+
+      const columns = [
+        {title: "Borrower ID", field: "borrower_id", headerFilter: "input", sorter: "string", width: 120},
+        {title: "Full Name", field: "full_name", headerFilter: "input", sorter: "string", width: 150},
+        {title: "Rate Spread", field: "rate_spread", headerFilter: "input", sorter: "number", width: 110, formatter: (cell) => {
+          const val = parseFloat(cell.getValue());
+          return !isNaN(val) ? val.toFixed(2) + '%' : cell.getValue();
+        }},
+        {title: "Monthly Savings", field: "monthly_savings_est", headerFilter: "input", sorter: "number", width: 130, formatter: (cell) => {
+          const val = parseFloat(cell.getValue());
+          return !isNaN(val) ? '$' + val.toFixed(0) : cell.getValue();
+        }},
+        {title: "Marketing Category", field: "marketing_category", headerFilter: "input", sorter: "string", width: 150},
+        {title: "LTV Ratio", field: "ltv_ratio", headerFilter: "input", sorter: "number", width: 100, formatter: (cell) => {
+          const val = parseFloat(cell.getValue());
+          return !isNaN(val) ? val.toFixed(1) + '%' : cell.getValue();
+        }},
+        {title: "Current Rate", field: "current_interest_rate", headerFilter: "input", sorter: "number", width: 110, formatter: (cell) => {
+          const val = parseFloat(cell.getValue());
+          return !isNaN(val) ? val.toFixed(2) + '%' : cell.getValue();
+        }},
+        {title: "Market Rate", field: "market_rate_offer", headerFilter: "input", sorter: "number", width: 110, formatter: (cell) => {
+          const val = parseFloat(cell.getValue());
+          return !isNaN(val) ? val.toFixed(2) + '%' : cell.getValue();
+        }},
+        {title: "Engagement Score", field: "engagement_score", headerFilter: "input", sorter: "number", width: 130}
+      ];
+
+      pipelineTableInstance = new Tabulator("#pipelineTable", {
+        data: pipelineData,
+        columns: columns,
+        layout: "fitDataFill",
+        pagination: true,
+        paginationSize: 10,
+        paginationSizeSelector: [10, 25, 50, 100],
+        movableColumns: true,
+        resizableColumns: true,
+        initialSort: [
+          {column: "monthly_savings_est", dir: "desc"}
+        ],
+        headerFilterLiveFilterDelay: 600,
+        placeholder: "No Data",
+      });
+
+      exportPipelineBtn.style.display = "inline-block";
+    }
+
+    function togglePipelineTable() {
+      pipelineTableVisible = !pipelineTableVisible;
+      if (pipelineTableVisible) {
+        pipelineTableContainer.style.display = "block";
+        pipelineTableToggleText.textContent = "Hide Table";
+        if (!pipelineTableInstance && allRecords.length > 0) {
+          initializePipelineTable();
+        }
+      } else {
+        pipelineTableContainer.style.display = "none";
+        pipelineTableToggleText.textContent = "Show Table";
+      }
+    }
+
+    togglePipelineTableBtn.addEventListener("click", togglePipelineTable);
+
+    // Export button handlers
+    exportPipelineBtn.addEventListener("click", () => {
+      if (pipelineTableInstance) {
+        pipelineTableInstance.download("csv", "pipeline_output.csv");
+      }
+    });
+
+    exportAthenaBtn.addEventListener("click", () => {
+      if (csvTableInstance) {
+        csvTableInstance.download("csv", "athena_results.csv");
+      }
+    });
+
+    // Initialize pipeline table on load
+    if (allRecords.length > 0) {
+      initializePipelineTable();
+    }
+
   </script>
 </body>
 </html>

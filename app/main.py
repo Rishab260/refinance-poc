@@ -28,7 +28,7 @@ TEMPLATE_DIR = BASE_DIR / "templates"
 
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 S3_BUCKET_NAME = os.getenv("REFI_S3_BUCKET", "refi-ready-poc-dev")
-S3_OUTPUT_PREFIX = os.getenv("REFI_S3_OUTPUT_PREFIX", "output/")
+S3_OUTPUT_PREFIX = os.getenv("REFI_S3_OUTPUT_PREFIX", "output/athena/")
 S3_RAW_PREFIX = os.getenv("REFI_S3_RAW_PREFIX", "raw/")
 PIPELINE_SCRIPT = BASE_DIR / "scripts" / "run_pipeline.py"
 
@@ -66,10 +66,16 @@ def _categorize_marketing(rate_spread: float) -> str:
 
 
 def _list_generated_output_csv_objects(s3_client: Any) -> list[dict[str, Any]]:
+    """List all generated CSV outputs from both pipeline and query-only runs."""
     paginator = s3_client.get_paginator("list_objects_v2")
     objects: list[dict[str, Any]] = []
-    for page in paginator.paginate(Bucket=S3_BUCKET_NAME, Prefix=S3_OUTPUT_PREFIX):
-        objects.extend(page.get("Contents", []))
+    
+    # Search in both output locations:
+    # 1. output/ - full pipeline runs
+    # 2. output/athena/ - query-only runs
+    for prefix in ["output/", S3_OUTPUT_PREFIX]:
+        for page in paginator.paginate(Bucket=S3_BUCKET_NAME, Prefix=prefix):
+            objects.extend(page.get("Contents", []))
 
     return [
         obj
@@ -80,7 +86,7 @@ def _list_generated_output_csv_objects(s3_client: Any) -> list[dict[str, Any]]:
 
 def _pick_latest_generated_output_key(csv_objects: list[dict[str, Any]]) -> str:
     if not csv_objects:
-        raise FileNotFoundError(f"No pipeline output CSV found at s3://{S3_BUCKET_NAME}/{S3_OUTPUT_PREFIX}")
+        raise FileNotFoundError(f"No pipeline output CSV found in s3://{S3_BUCKET_NAME}/output/ or output/athena/")
 
     ordered_csv = sorted(csv_objects, key=lambda obj: obj.get("LastModified"), reverse=True)
     non_fallback = [obj for obj in ordered_csv if "fallback-" not in obj.get("Key", "")]
@@ -288,7 +294,7 @@ def _load_from_cloud_pipeline_output() -> tuple[pd.DataFrame, str]:
 
     candidates = non_fallback[:1] if non_fallback else fallback[:1]
     if not candidates:
-        raise FileNotFoundError(f"No pipeline output CSV found at s3://{S3_BUCKET_NAME}/{S3_OUTPUT_PREFIX}")
+        raise FileNotFoundError(f"No pipeline output CSV found in s3://{S3_BUCKET_NAME}/output/ or output/athena/")
 
     df = pd.DataFrame()
     source_key = ""
@@ -461,38 +467,48 @@ def load_dashboard_dataframe() -> pd.DataFrame:
 
 
 def build_payload(df: pd.DataFrame, source_key: str) -> dict[str, Any]:
-    records = df[
-        [
-            "borrower_id",
-            "full_name",
-            "city",
-            "state",
-            "credit_score",
-            "current_interest_rate",
-            "market_rate_offer",
-            "monthly_savings_est",
-            "ltv_ratio",
-            "rate_spread",
-            "marketing_category",
-            "paperless_billing",
-            "email_open_last_30d",
-            "mobile_app_login_last_30d",
-            "sms_opt_in",
-        ]
-    ].to_dict(orient="records")
+    # Define required columns
+    required_columns = [
+        "borrower_id",
+        "full_name",
+        "city",
+        "state",
+        "credit_score",
+        "current_interest_rate",
+        "market_rate_offer",
+        "monthly_savings_est",
+        "ltv_ratio",
+        "rate_spread",
+        "marketing_category",
+        "paperless_billing",
+        "email_open_last_30d",
+        "mobile_app_login_last_30d",
+        "sms_opt_in",
+    ]
+    
+    # Only select columns that exist in the dataframe
+    available_columns = [col for col in required_columns if col in df.columns]
+    records = df[available_columns].to_dict(orient="records")
 
     for record in records:
-        record["current_interest_rate"] = round(float(record["current_interest_rate"]), 2)
-        record["market_rate_offer"] = round(float(record["market_rate_offer"]), 2)
-        record["monthly_savings_est"] = round(float(record["monthly_savings_est"]), 2)
-        record["ltv_ratio"] = round(float(record["ltv_ratio"]), 2)
-        record["rate_spread"] = round(float(record["rate_spread"]), 2)
+        # Safely round numeric fields if they exist
+        if "current_interest_rate" in record:
+            record["current_interest_rate"] = round(float(record["current_interest_rate"]), 2)
+        if "market_rate_offer" in record:
+            record["market_rate_offer"] = round(float(record["market_rate_offer"]), 2)
+        if "monthly_savings_est" in record:
+            record["monthly_savings_est"] = round(float(record["monthly_savings_est"]), 2)
+        if "ltv_ratio" in record:
+            record["ltv_ratio"] = round(float(record["ltv_ratio"]), 2)
+        if "rate_spread" in record:
+            record["rate_spread"] = round(float(record["rate_spread"]), 2)
 
     categories = ["Immediate Action", "Hot Lead", "Watchlist", "Ineligible"]
     return {
         "records": records,
         "categories": categories,
         "source_key": source_key,
+        "s3_path": source_key,
     }
 
 
@@ -508,8 +524,8 @@ def dashboard(request: Request) -> HTMLResponse:
         raise HTTPException(
             status_code=503,
             detail=(
-                f"Cloud pipeline output unavailable. Expected latest CSV at "
-                f"s3://{S3_BUCKET_NAME}/{S3_OUTPUT_PREFIX}. "
+                f"Cloud pipeline output unavailable. Expected latest CSV in "
+                f"s3://{S3_BUCKET_NAME}/output/ or output/athena/. "
                 f"Error: {exc.__class__.__name__}: {exc}"
             ),
         ) from exc
@@ -626,6 +642,79 @@ def run_pipeline(req: PipelineRunRequest | None = None) -> dict[str, Any]:
 def get_pipeline_status() -> dict[str, Any]:
     with pipeline_state_lock:
         return dict(pipeline_state)
+
+
+@app.get("/api/s3/files")
+def list_s3_files() -> dict[str, Any]:
+    """List all available CSV files from S3 output locations with metadata."""
+    try:
+        s3_client = boto3.client("s3", region_name=AWS_REGION)
+        csv_objects = _list_generated_output_csv_objects(s3_client)
+        
+        files = []
+        for obj in csv_objects:
+            key = obj.get("Key", "")
+            last_modified = obj.get("LastModified")
+            size = obj.get("Size", 0)
+            
+            # Determine source type
+            source_type = "Pipeline" if key.startswith("output/") and not key.startswith("output/athena/") else "Query"
+            
+            # Format filename for display
+            filename = key.split("/")[-1]
+            
+            files.append({
+                "key": key,
+                "filename": filename,
+                "last_modified": last_modified.isoformat() if last_modified else None,
+                "size": size,
+                "size_mb": round(size / (1024 * 1024), 2),
+                "source_type": source_type,
+                "s3_path": f"s3://{S3_BUCKET_NAME}/{key}"
+            })
+        
+        # Sort by last modified (newest first)
+        files.sort(key=lambda x: x["last_modified"] or "", reverse=True)
+        
+        return {
+            "files": files,
+            "total": len(files)
+        }
+    except Exception as e:
+        logging.exception("Failed to list S3 files")
+        raise HTTPException(status_code=500, detail=f"Failed to list S3 files: {str(e)}")
+
+
+@app.get("/api/s3/load")
+def load_s3_file(key: str) -> dict[str, Any]:
+    """Load a specific CSV file from S3 and return dashboard data."""
+    try:
+        logging.info(f"Loading S3 file: {key}")
+        s3_client = boto3.client("s3", region_name=AWS_REGION)
+        
+        # Fetch the CSV from S3
+        obj = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=key)
+        csv_content = obj["Body"].read()
+        
+        # Load into pandas
+        df = pd.read_csv(BytesIO(csv_content))
+        logging.info(f"Loaded CSV with {len(df)} rows and columns: {df.columns.tolist()}")
+        
+        # Apply marketing categorization if needed
+        if "marketing_category" not in df.columns and "rate_spread" in df.columns:
+            df["marketing_category"] = df["rate_spread"].apply(_categorize_marketing)
+            logging.info("Applied marketing categorization")
+        
+        # Build the payload
+        source_type = "Pipeline Output" if key.startswith("output/") and not key.startswith("output/athena/") else "Athena Query"
+        s3_path = f"s3://{S3_BUCKET_NAME}/{key}"
+        
+        payload = build_payload(df, s3_path)
+        logging.info(f"Successfully built payload with {len(payload['records'])} records")
+        return payload
+    except Exception as e:
+        logging.exception(f"Failed to load S3 file: {key}")
+        raise HTTPException(status_code=500, detail=f"Failed to load file: {str(e)}")
 
 
 # ---------------------------------------------------------------------------

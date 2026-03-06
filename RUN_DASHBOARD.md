@@ -14,7 +14,7 @@ Then open: `http://127.0.0.1:8000`
 
 ## What the dashboard uses
 
-- Primary source: latest CSV in `s3://refi-ready-poc-dev/output/`
+- Primary source: latest CSV in `s3://refi-ready-poc-dev/output/athena/`
 - Fallback source: derived dataset from `s3://refi-ready-poc-dev/raw/`
 - Eligibility logic: `ltv_ratio <= 80` and `rate_spread >= 1.0`
 
@@ -29,7 +29,7 @@ current filter settings to the backend; the Athena query executed as part of
 that run will incorporate the same constraints.
 
 A new **Run Query Only** button allows you to execute the Athena
-eligibility query directly (skipping upload, Glue, and entity resolution).
+eligibility query directly (skipping upload, Glue crawler, and entity resolution matching).
 After it completes you can click the resulting "Download CSV" link to fetch
 rows.
 
@@ -56,7 +56,7 @@ aws sts get-caller-identity
 ### No output data available
 
 1. Run `python scripts/run_pipeline.py`
-2. Verify CSVs exist under `s3://refi-ready-poc-dev/output/`
+2. Verify CSVs exist under `s3://refi-ready-poc-dev/output/athena/`
 
 ## Available static artifacts in this repo
 

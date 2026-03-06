@@ -31,7 +31,7 @@ Use S3 output first:
 ```python
 import pandas as pd
 
-df = pd.read_csv("s3://refi-ready-poc-dev/output/<latest_output_file>.csv")
+df = pd.read_csv("s3://refi-ready-poc-dev/output/athena/<latest_output_file>.csv")
 df.head()
 ```
 
@@ -63,7 +63,7 @@ pip install pandas plotly boto3 s3fs
 ### S3 read fails
 
 - Verify credentials: `aws sts get-caller-identity`
-- Verify object exists under `s3://refi-ready-poc-dev/output/`
+- Verify object exists under `s3://refi-ready-poc-dev/output/athena/`
 
 ### Missing modules
 

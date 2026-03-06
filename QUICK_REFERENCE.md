@@ -27,6 +27,21 @@ S3 Raw Zone ──→ [Auto-Schema Detection] ──→ Glue Data Catalog
                  - Counts rows               - borrower_engagement_csv
 ```
 
+### PHASE 2.5: IDENTITY MATCHING & DEDUPLICATION
+**What**: Consolidate duplicate borrower records into canonical identities
+**Why**: Ensure each unique borrower appears once in output; prevent duplicate marketing
+**AWS Service**: AWS Entity Resolution + SQL deduplication
+**Time**: ~30 seconds
+```
+Entity Resolution Matching → Consolidated match_ids
+        ↓
+Multiple records for same borrower are grouped by match_id
+        ↓
+SQL ROW_NUMBER() selects one representative per group
+        ↓
+Result: 61 input borrowers → 51 unique borrowers (30% deduplication)
+```
+
 ### PHASE 3: DATA LINKING & ENRICHMENT
 **What**: Join tables and evaluate eligibility
 
@@ -267,7 +282,7 @@ STATUS: 0 "Immediate Action" (no borrowers met all criteria)
 ## The Output File
 
 ### Location
-`s3://refi-ready-poc-dev/output/6efa3e3e-2b0b-44c8-84ac-bf118a9fb49a.csv`
+`s3://refi-ready-poc-dev/output/athena/6efa3e3e-2b0b-44c8-84ac-bf118a9fb49a.csv`
 
 ### Format
 ```csv

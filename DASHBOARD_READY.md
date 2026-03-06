@@ -6,7 +6,7 @@ Dashboard support in this repository is active and working via FastAPI.
 
 - Primary launch command: `bash launch_web_dashboard.sh`
 - URL: `http://127.0.0.1:8000`
-- Data source: latest CSV from `s3://refi-ready-poc-dev/output/`
+- Data source: latest CSV from `s3://refi-ready-poc-dev/output/athena/`
 - Fallback source: derived dataset from `s3://refi-ready-poc-dev/raw/`
 
 ## Recommended run sequence

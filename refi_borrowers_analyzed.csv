@@ -1,11 +1,52 @@
-borrower_id,first_name,last_name,email,phone,property_id,city,state,credit_score,loan_id,property_id_loan,loan_amount,current_interest_rate,origination_year,loan_type,remaining_balance,current_home_value,estimated_equity_amt,ltv_ratio,market_rate_offer,monthly_savings_est,paperless_billing,email_open_last_30d,mobile_app_login_last_30d,sms_opt_in,rate_spread,full_name,marketing_category,annual_savings_est,engagement_score,ltv_bin,rate_spread_bin
-1,John,Smith,john.smith@example.com,555-0101,101,Anytown,CA,750,201,101,300000,4.5,2020,Fixed,280000,400000,120000,70,3.2,250,True,True,True,True,1.2999999999999998,John Smith,Immediate Action,3000,4,60-70%,1.0-1.5%
-2,Jane,Doe,jane.doe@example.com,555-0102,102,Anytown,CA,800,202,102,450000,3.8,2021,Fixed,430000,550000,120000,78,2.5,200,True,True,False,False,1.2999999999999998,Jane Doe,Immediate Action,2400,2,70-80%,1.0-1.5%
-4,Mary,Johnson,mary.johnson@example.com,555-0104,104,Smallville,KS,720,204,104,250000,4.9,2022,Fixed,240000,300000,60000,80,3.5,150,True,True,True,True,1.4000000000000004,Mary Johnson,Immediate Action,1800,4,70-80%,1.0-1.5%
-5,David,Williams,david.williams@example.com,555-0105,105,Metropolis,NY,780,205,105,600000,4.1,2020,Fixed,550000,700000,150000,79,2.8,220,True,False,True,False,1.2999999999999998,David Williams,Immediate Action,2640,2,70-80%,1.0-1.5%
-9,Robert,Wilson,robert.wilson@example.com,555-0109,109,Star City,WA,790,209,109,500000,4.2,2020,Fixed,460000,600000,140000,77,3.0,200,True,True,True,True,1.2000000000000002,Robert Wilson,Hot Lead,2400,4,70-80%,1.0-1.5%
-11,James,Taylor,james.taylor@example.com,555-0111,111,Central City,MO,760,211,111,400000,4.6,2021,Fixed,380000,480000,100000,79,3.3,210,True,True,False,False,1.2999999999999998,James Taylor,Immediate Action,2520,2,70-80%,1.0-1.5%
-15,Richard,White,richard.white@example.com,555-0115,115,Fawcett City,OH,770,215,115,550000,4.4,2020,Fixed,510000,650000,140000,78,3.1,240,True,True,True,True,1.3000000000000003,Richard White,Immediate Action,2880,4,70-80%,1.0-1.5%
-20,Sarah,Martinez,sarah.martinez@example.com,555-0120,120,Opal City,MD,780,220,120,600000,4.0,2020,Fixed,560000,700000,140000,80,2.9,210,False,True,False,True,1.1,Sarah Martinez,Hot Lead,2520,2,70-80%,1.0-1.5%
-29,Anthony,Young,anthony.young@example.com,555-0129,129,Midway City,MI,760,229,129,550000,4.3,2020,Fixed,520000,650000,130000,80,3.2,220,True,True,True,True,1.0999999999999996,Anthony Young,Hot Lead,2640,4,70-80%,1.0-1.5%
-33,Steven,Lopez,steven.lopez@example.com,555-0133,133,Monument Point,DC,770,233,133,600000,4.2,2020,Fixed,560000,700000,140000,80,3.1,230,True,False,True,False,1.1,Steven Lopez,Hot Lead,2760,2,70-80%,1.0-1.5%
+"borrower_id","name","rate_spread","monthly_savings_est","marketing_category"
+"7","Michael Davis","1.0","180.0","Hot Lead"
+"16","Barbara Harris","0.8000000000000003","70.0","Hot Lead"
+"17","Charles Martin","0.5999999999999996","50.0","Watchlist"
+"22","Nancy Clark","1.0","190.0","Hot Lead"
+"23","Daniel Rodriguez","0.7000000000000002","60.0","Watchlist"
+"27","Donald Hall","1.0","280.0","Hot Lead"
+"31","Mark King","1.0","240.0","Hot Lead"
+"33","Steven Lopez","1.1","230.0","Hot Lead"
+"40","Cynthia Nelson","1.0","210.0","Hot Lead"
+"41","Kevin Carter","0.7000000000000002","60.0","Watchlist"
+"42","Melissa Mitchell","1.0999999999999996","230.0","Hot Lead"
+"49","Ronald Evans","1.0","260.0","Hot Lead"
+"50","Laura Edwards","0.5999999999999996","60.0","Watchlist"
+"1","John Smith","1.2999999999999998","250.0","Immediate Action"
+"5","David Williams","1.2999999999999998","220.0","Immediate Action"
+"18","Jessica Thompson","1.0","250.0","Hot Lead"
+"19","Joseph Garcia","0.5999999999999996","60.0","Watchlist"
+"21","Thomas Robinson","0.7999999999999998","80.0","Hot Lead"
+"25","Matthew Lee","1.1","180.0","Hot Lead"
+"29","Anthony Young","1.0999999999999996","220.0","Hot Lead"
+"30","Sandra Hernandez","0.7999999999999998","80.0","Hot Lead"
+"35","Paul Scott","0.6000000000000005","50.0","Watchlist"
+"39","Joshua Gonzalez","0.7999999999999998","80.0","Hot Lead"
+"3","Peter Jones","0.40000000000000036","50.0","Ineligible"
+"4","Mary Johnson","1.4000000000000004","150.0","Immediate Action"
+"6","Susan Brown","0.5999999999999996","40.0","Watchlist"
+"8","Patricia Miller","1.0","90.0","Hot Lead"
+"12","Linda Anderson","0.6999999999999997","80.0","Watchlist"
+"13","William Thomas","1.0","230.0","Hot Lead"
+"15","Richard White","1.3000000000000003","240.0","Immediate Action"
+"24","Karen Lewis","1.0999999999999996","200.0","Hot Lead"
+"45","George Turner","1.0","300.0","Hot Lead"
+"46","Rebecca Phillips","0.7000000000000002","50.0","Watchlist"
+"47","Edward Campbell","1.0999999999999996","240.0","Hot Lead"
+"2","Jane Doe","1.2999999999999998","200.0","Immediate Action"
+"9","Robert Wilson","1.2000000000000002","200.0","Hot Lead"
+"10","Jennifer Moore","0.5999999999999996","60.0","Watchlist"
+"11","James Taylor","1.2999999999999998","210.0","Immediate Action"
+"14","Elizabeth Jackson","0.7999999999999998","70.0","Hot Lead"
+"20","Sarah Martinez","1.1","210.0","Hot Lead"
+"26","Lisa Walker","0.8000000000000007","70.0","Hot Lead"
+"28","Betty Allen","0.6999999999999993","50.0","Watchlist"
+"32","Ashley Wright","0.6000000000000005","60.0","Watchlist"
+"34","Kimberly Hill","0.8000000000000003","70.0","Hot Lead"
+"36","Emily Green","1.0","270.0","Hot Lead"
+"37","Andrew Adams","0.6000000000000005","60.0","Watchlist"
+"38","Donna Baker","1.1","220.0","Hot Lead"
+"43","Brian Perez","1.0","180.0","Hot Lead"
+"44","Deborah Roberts","0.8000000000000007","70.0","Hot Lead"
+"48","Sharon Parker","0.7999999999999998","80.0","Hot Lead"
+"51","Larry Collins","1.0000000000000004","220.0","Hot Lead"
