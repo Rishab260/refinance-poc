@@ -107,6 +107,21 @@ curl -X POST http://127.0.0.1:8000/api/pipeline/run \
   > contains global actions (refresh, pipeline run).
 This is useful for automation or sharing filter combinations.
 
+#### View modes (new)
+
+The dashboard now has a **View** dropdown in the header:
+
+- **Refi Opportunity View**: shows refinance KPIs/charts and uses category + LTV + spread filters.
+- **Account Health Status View**: shows account health KPIs/charts and hides LTV/spread filters.
+
+Account Health metrics are displayed directly (not filtered by separate account-health checkboxes).
+For **Mobile App Usage**, the UI treats a borrower as active if either:
+
+- `mobile_app_logged_in` is true, or
+- `mobile_app_login_last_30d` is true.
+
+The selected view is included in the shareable URL via `view_mode`.
+
 ### Option B: Static exported artifacts (already in repo)
 
 - `refi_dashboard_export.html`

@@ -8,6 +8,9 @@ Dashboard support in this repository is active and working via FastAPI.
 - URL: `http://127.0.0.1:8000`
 - Data source: latest CSV from `s3://refi-ready-poc-dev/output/athena/`
 - Fallback source: derived dataset from `s3://refi-ready-poc-dev/raw/`
+- View switching: Refi Opportunity View / Account Health Status View
+- Account Health view behavior: LTV and spread filters are hidden in this mode
+- Mobile App Usage KPI/chart use `mobile_app_logged_in` with fallback to `mobile_app_login_last_30d`
 
 ## Recommended run sequence
 

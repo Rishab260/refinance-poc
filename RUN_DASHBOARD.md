@@ -18,6 +18,26 @@ Then open: `http://127.0.0.1:8000`
 - Fallback source: derived dataset from `s3://refi-ready-poc-dev/raw/`
 - Eligibility logic: `ltv_ratio <= 80` and `rate_spread >= 1.0`
 
+## View modes
+
+Use the **View** dropdown in the header to switch dashboard context:
+
+- **Refi Opportunity View**
+	- Shows refinance KPIs and refinance-focused charts.
+	- Uses category, LTV, and rate spread filters.
+
+- **Account Health Status View**
+	- Shows account-health KPIs and account-health charts.
+	- Hides LTV/rate spread filters.
+	- Shows account-health status directly (no separate account-health checkbox filters).
+
+### Mobile App Usage metric
+
+In Account Health mode, **Mobile App Usage** counts a borrower as active when either field is true:
+
+- `mobile_app_logged_in`
+- `mobile_app_login_last_30d`
+
 ## Run pipeline before opening dashboard (if needed)
 
 ```bash
