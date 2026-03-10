@@ -30,6 +30,12 @@
               <option value="current">📊 Current Dashboard Data</option>
             </select>
           </p>
+          <p class="text-xs text-slate-500 mt-1">View:
+            <select id="viewModeDropdown" class="inline-block bg-white border border-slate-300 rounded px-2 py-1 text-slate-700 font-medium focus:outline-none focus:border-sky-500 cursor-pointer hover:border-slate-400 transition-colors">
+              <option value="refi">📈 Refi Opportunity View</option>
+              <option value="account_health">💙 Account Health Status View</option>
+            </select>
+          </p>
           <p class="text-xs text-slate-500 mt-1">File: <span id="dataSource" class="font-medium text-slate-700">-</span></p>
           <p class="text-xs text-slate-500 mt-1">S3 Path: <span id="s3Path">-</span></p>
           <p class="text-xs text-slate-500 mt-1">Pipeline Status: <span id="pipelineStatus">Checking...</span></p>
@@ -46,7 +52,7 @@
       </div>
     </header>
 
-    <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+    <section id="refiKpiSection" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
       <div class="rounded-xl p-5 text-white bg-gradient-to-r from-sky-500 to-sky-600">
         <p class="text-sm opacity-90">Total Borrowers</p>
         <p id="kpiTotalBorrowers" class="text-3xl font-bold mt-1">Loading…</p>
@@ -65,7 +71,30 @@
       </div>
     </section>
 
-    <section class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+    <!-- Account Health Status Section -->
+    <section id="accountHealthKpiSection" class="mb-6" style="display:none;">
+      <h2 class="font-semibold mb-3 text-lg">Account Health Status</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="rounded-xl p-5 text-white bg-gradient-to-r from-blue-500 to-blue-600">
+          <p class="text-sm opacity-90">Paperless Enrolled</p>
+          <p id="kpiPaperlessRate" class="text-3xl font-bold mt-1">Loading…</p>
+        </div>
+        <div class="rounded-xl p-5 text-white bg-gradient-to-r from-indigo-500 to-indigo-600">
+          <p class="text-sm opacity-90">Web Login Active</p>
+          <p id="kpiWebLoginRate" class="text-3xl font-bold mt-1">Loading…</p>
+        </div>
+        <div class="rounded-xl p-5 text-white bg-gradient-to-r from-purple-500 to-purple-600">
+          <p class="text-sm opacity-90">Mobile App Downloaded</p>
+          <p id="kpiMobileDownloadRate" class="text-3xl font-bold mt-1">Loading…</p>
+        </div>
+        <div class="rounded-xl p-5 text-white bg-gradient-to-r from-pink-500 to-pink-600">
+          <p class="text-sm opacity-90">Mobile App Usage</p>
+          <p id="kpiMobileLoginRate" class="text-3xl font-bold mt-1">Loading…</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="refiChartsSection" class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
       <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
         <h2 class="font-semibold mb-3">Borrowers by Marketing Category</h2>
         <canvas id="categoryChart" height="120"></canvas>
@@ -76,12 +105,24 @@
       </div>
     </section>
 
+    <!-- Account Health Visualizations -->
+    <section id="accountHealthChartsSection" class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6" style="display:none;">
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <h2 class="font-semibold mb-3">Account Health Adoption</h2>
+        <canvas id="accountHealthChart" height="120"></canvas>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <h2 class="font-semibold mb-3">Digital Engagement by Marketing Category</h2>
+        <canvas id="engagementByCategoryChart" height="120"></canvas>
+      </div>
+    </section>
+
     <section class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm mb-6">
       <h2 class="font-semibold mb-3">Pipeline Live Logs</h2>
       <pre id="pipelineLogs" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 h-40 overflow-auto">No logs yet.</pre>
     </section>
 
-    <section class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+    <section id="refiInsightsSection" class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
       <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
         <h2 class="font-semibold mb-3">Top 10 Savings Opportunities</h2>
         <canvas id="topSavingsChart" height="120"></canvas>
@@ -100,12 +141,12 @@
         <span id="filtersToggleIcon" class="text-slate-600 transition-transform">▼</span>
       </div>
       <div id="filtersContent" class="grid grid-cols-1 xl:grid-cols-4 gap-4">
-        <div>
+        <div id="filterCategoryGroup">
           <label class="text-sm font-medium">Marketing Category</label>
           <select id="categoryFilter" multiple class="mt-1 w-full rounded-md border-slate-300 text-sm h-28">
           </select>
         </div>
-        <div>
+        <div id="filterLtvGroup">
           <label class="text-sm font-medium">LTV Ratio: <span id="ltvRangeLabel">0% - 100%</span></label>
           <div class="mt-2 space-y-2">
             <div class="flex items-center gap-2">
@@ -120,7 +161,7 @@
             </div>
           </div>
         </div>
-        <div>
+        <div id="filterSpreadGroup">
           <label class="text-sm font-medium">Rate Spread: <span id="spreadRangeLabel">0.00% - 3.00%</span></label>
           <div class="mt-2 space-y-2">
             <div class="flex items-center gap-2">
@@ -135,6 +176,7 @@
             </div>
           </div>
         </div>
+        <div id="filterAccountHealthGroup" class="hidden"></div>
 
       </div>
       </div>
@@ -209,6 +251,7 @@
 
     // Data Source Management - S3 Files
     const dataSourceDropdown = document.getElementById("dataSourceDropdown");
+    const viewModeDropdown = document.getElementById("viewModeDropdown");
     const s3PathEl = document.getElementById("s3Path");
     const dataSourceEl = document.getElementById("dataSource");
     let s3FilesList = [];
@@ -414,6 +457,35 @@
     const ltvMax = document.getElementById("ltvMax");
     const spreadMin = document.getElementById("spreadMin");
     const spreadMax = document.getElementById("spreadMax");
+    const refiKpiSection = document.getElementById("refiKpiSection");
+    const accountHealthKpiSection = document.getElementById("accountHealthKpiSection");
+    const refiChartsSection = document.getElementById("refiChartsSection");
+    const accountHealthChartsSection = document.getElementById("accountHealthChartsSection");
+    const refiInsightsSection = document.getElementById("refiInsightsSection");
+    const filterCategoryGroup = document.getElementById("filterCategoryGroup");
+    const filterLtvGroup = document.getElementById("filterLtvGroup");
+    const filterSpreadGroup = document.getElementById("filterSpreadGroup");
+    const filterAccountHealthGroup = document.getElementById("filterAccountHealthGroup");
+    const filtersContent = document.getElementById("filtersContent");
+
+    function applyViewMode() {
+      const accountHealthMode = viewModeDropdown.value === "account_health";
+      refiKpiSection.style.display = accountHealthMode ? "none" : "grid";
+      refiChartsSection.style.display = accountHealthMode ? "none" : "grid";
+      refiInsightsSection.style.display = accountHealthMode ? "none" : "grid";
+      accountHealthKpiSection.style.display = accountHealthMode ? "block" : "none";
+      accountHealthChartsSection.style.display = accountHealthMode ? "grid" : "none";
+
+      filterCategoryGroup.style.display = "block";
+      filterAccountHealthGroup.style.display = "none";
+      filterLtvGroup.style.display = accountHealthMode ? "none" : "block";
+      filterSpreadGroup.style.display = accountHealthMode ? "none" : "block";
+      filtersContent.className = accountHealthMode
+        ? "grid grid-cols-1 xl:grid-cols-1 gap-4"
+        : "grid grid-cols-1 xl:grid-cols-3 gap-4";
+
+      updateShareLink();
+    }
 
     // make sure filters show initial state even before first data fetch
     updateRangeLabels();
@@ -436,6 +508,14 @@
       return `${(value || 0).toFixed(2)}%`;
     }
 
+    function isTrueish(value) {
+      return value === true || value === "TRUE" || value === "true" || value === "OPEN";
+    }
+
+    function isMobileUsageActive(record) {
+      return isTrueish(record.mobile_app_logged_in) || isTrueish(record.mobile_app_login_last_30d);
+    }
+
     function selectedCategories() {
       return Array.from(categoryFilter.selectedOptions).map((o) => o.value);
     }
@@ -443,18 +523,21 @@
     // build a query string from the current filter controls
     function buildQueryParams() {
       const params = new URLSearchParams();
+      const accountHealthMode = viewModeDropdown.value === "account_health";
+      params.set("view_mode", viewModeDropdown.value);
       selectedCategories().forEach((c) => params.append("category", c));
 
-      const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
-      const maxLtv = Math.max(Number(ltvMin.value), Number(ltvMax.value));
-      params.set("ltv_min", minLtv);
-      params.set("ltv_max", maxLtv);
+      if (!accountHealthMode) {
+        const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
+        const maxLtv = Math.max(Number(ltvMin.value), Number(ltvMax.value));
+        params.set("ltv_min", minLtv);
+        params.set("ltv_max", maxLtv);
 
-      const minSpread = Math.min(Number(spreadMin.value), Number(spreadMax.value));
-      const maxSpread = Math.max(Number(spreadMin.value), Number(spreadMax.value));
-      params.set("spread_min", minSpread);
-      params.set("spread_max", maxSpread);
-
+        const minSpread = Math.min(Number(spreadMin.value), Number(spreadMax.value));
+        const maxSpread = Math.max(Number(spreadMin.value), Number(spreadMax.value));
+        params.set("spread_min", minSpread);
+        params.set("spread_max", maxSpread);
+      }
 
       return params;
     }
@@ -475,16 +558,16 @@
 
     function getFilteredRecords() {
       // keep client-side fallback for when the server endpoint is unreachable
+      const accountHealthMode = viewModeDropdown.value === "account_health";
       const categories = selectedCategories();
       const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
       const maxLtv = Math.max(Number(ltvMin.value), Number(ltvMax.value));
       const minSpread = Math.min(Number(spreadMin.value), Number(spreadMax.value));
       const maxSpread = Math.max(Number(spreadMin.value), Number(spreadMax.value));
-
       return allRecords.filter((r) => {
         if (!categories.includes(r.marketing_category)) return false;
-        if (r.ltv_ratio < minLtv || r.ltv_ratio > maxLtv) return false;
-        if (r.rate_spread < minSpread || r.rate_spread > maxSpread) return false;
+        if (!accountHealthMode && (r.ltv_ratio < minLtv || r.ltv_ratio > maxLtv)) return false;
+        if (!accountHealthMode && (r.rate_spread < minSpread || r.rate_spread > maxSpread)) return false;
         return true;
       });
     }
@@ -499,6 +582,38 @@
       document.getElementById("kpiTotalSavings").textContent = fmtCurrency(savings);
       document.getElementById("kpiAvgSpread").textContent = fmtPercent(avgSpread);
       document.getElementById("kpiAvgLtv").textContent = fmtPercent(avgLtv);
+    }
+
+    function updateAccountHealthKpis(records) {
+      const total = records.length;
+      if (total === 0) {
+        document.getElementById("kpiPaperlessRate").textContent = "0%";
+        document.getElementById("kpiWebLoginRate").textContent = "0%";
+        document.getElementById("kpiMobileDownloadRate").textContent = "0%";
+        document.getElementById("kpiMobileLoginRate").textContent = "0%";
+        return;
+      }
+
+      // Count borrowers with each status (handling both boolean and string values)
+      const paperlessCount = records.filter(r => isTrueish(r.paperless_status)).length;
+      
+      const webLoginCount = records.filter(r => isTrueish(r.web_login_used)).length;
+      
+      const mobileDownloadCount = records.filter(r => isTrueish(r.mobile_app_downloaded)).length;
+      
+      const mobileLoginCount = records.filter(r => isMobileUsageActive(r)).length;
+
+      // Calculate percentages
+      const paperlessRate = (paperlessCount / total) * 100;
+      const webLoginRate = (webLoginCount / total) * 100;
+      const mobileDownloadRate = (mobileDownloadCount / total) * 100;
+      const mobileLoginRate = (mobileLoginCount / total) * 100;
+
+      // Update UI
+      document.getElementById("kpiPaperlessRate").textContent = `${paperlessRate.toFixed(1)}%`;
+      document.getElementById("kpiWebLoginRate").textContent = `${webLoginRate.toFixed(1)}%`;
+      document.getElementById("kpiMobileDownloadRate").textContent = `${mobileDownloadRate.toFixed(1)}%`;
+      document.getElementById("kpiMobileLoginRate").textContent = `${mobileLoginRate.toFixed(1)}%`;
     }
 
     function upsertChart(id, config) {
@@ -617,6 +732,110 @@
       });
     }
 
+    function updateAccountHealthChart(records) {
+      const total = records.length;
+
+      // Count each metric
+      const paperlessCount = records.filter(r => isTrueish(r.paperless_status)).length;
+      const webLoginCount = records.filter(r => isTrueish(r.web_login_used)).length;
+      const mobileDownloadCount = records.filter(r => isTrueish(r.mobile_app_downloaded)).length;
+      const mobileLoginCount = records.filter(r => isMobileUsageActive(r)).length;
+
+      upsertChart("accountHealthChart", {
+        type: "bar",
+        data: {
+          labels: ["Paperless", "Web Login", "Mobile Download", "Mobile Usage"],
+          datasets: [{
+            label: "Active Borrowers",
+            data: [paperlessCount, webLoginCount, mobileDownloadCount, mobileLoginCount],
+            backgroundColor: ["#3B82F6", "#6366F1", "#8B5CF6", "#EC4899"]
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { 
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const count = context.parsed.y;
+                  const percentage = total ? ((count / total) * 100).toFixed(1) : "0.0";
+                  return `${count} borrowers (${percentage}%)`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: { 
+              beginAtZero: true,
+              ticks: { precision: 0 }
+            }
+          }
+        }
+      });
+    }
+
+    function updateEngagementByCategoryChart(records) {
+      const categoryData = {};
+      dashboardData.categories.forEach(cat => {
+        categoryData[cat] = {
+          paperless: 0,
+          webLogin: 0,
+          mobileDownload: 0,
+          mobileLogin: 0,
+          total: 0
+        };
+      });
+
+      records.forEach(r => {
+        const cat = r.marketing_category;
+        if (categoryData[cat]) {
+          categoryData[cat].total += 1;
+          if (isTrueish(r.paperless_status)) categoryData[cat].paperless += 1;
+          if (isTrueish(r.web_login_used)) categoryData[cat].webLogin += 1;
+          if (isTrueish(r.mobile_app_downloaded)) categoryData[cat].mobileDownload += 1;
+          if (isMobileUsageActive(r)) categoryData[cat].mobileLogin += 1;
+        }
+      });
+
+      // Calculate average engagement score per category
+      const labels = dashboardData.categories;
+      const engagementScores = labels.map(cat => {
+        const data = categoryData[cat];
+        if (data.total === 0) return 0;
+        // Average of all four metrics
+        const score = ((data.paperless + data.webLogin + data.mobileDownload + data.mobileLogin) / (data.total * 4)) * 100;
+        return score;
+      });
+
+      upsertChart("engagementByCategoryChart", {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Digital Engagement Score (%)",
+            data: engagementScores,
+            backgroundColor: labels.map(l => colors[l] || "#94A3B8")
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { 
+              beginAtZero: true,
+              max: 100,
+              ticks: {
+                callback: function(value) {
+                  return value + '%';
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
 
     function updateRangeLabels() {
       const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
@@ -657,8 +876,11 @@
         records = getFilteredRecords();
       }
       updateKpis(records);
+      updateAccountHealthKpis(records);
       updateCategoryChart(records);
       updateScatterChart(records);
+      updateAccountHealthChart(records);
+      updateEngagementByCategoryChart(records);
       updateTopSavingsChart(records);
       updateHeatmap(records);
       
@@ -676,8 +898,11 @@
       // Use current allRecords filtered by current filter settings
       const records = getFilteredRecords();
       updateKpis(records);
+      updateAccountHealthKpis(records);
       updateCategoryChart(records);
       updateScatterChart(records);
+      updateAccountHealthChart(records);
+      updateEngagementByCategoryChart(records);
       updateTopSavingsChart(records);
       updateHeatmap(records);
     }
@@ -732,18 +957,21 @@
 
       // build a payload object that mirrors the query parameters used elsewhere
       const payload = {};
+      const accountHealthMode = viewModeDropdown.value === "account_health";
       const cats = selectedCategories();
       if (cats.length) payload.category = cats;
 
-      const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
-      const maxLtv = Math.max(Number(ltvMin.value), Number(ltvMax.value));
-      payload.ltv_min = minLtv;
-      payload.ltv_max = maxLtv;
+      if (!accountHealthMode) {
+        const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
+        const maxLtv = Math.max(Number(ltvMin.value), Number(ltvMax.value));
+        payload.ltv_min = minLtv;
+        payload.ltv_max = maxLtv;
 
-      const minSpread = Math.min(Number(spreadMin.value), Number(spreadMax.value));
-      const maxSpread = Math.max(Number(spreadMin.value), Number(spreadMax.value));
-      payload.spread_min = minSpread;
-      payload.spread_max = maxSpread;
+        const minSpread = Math.min(Number(spreadMin.value), Number(spreadMax.value));
+        const maxSpread = Math.max(Number(spreadMin.value), Number(spreadMax.value));
+        payload.spread_min = minSpread;
+        payload.spread_max = maxSpread;
+      }
 
 
       try {
@@ -794,6 +1022,7 @@
 
     runPipelineBtn.addEventListener("click", triggerPipelineRun);
     runQueryBtn.addEventListener("click", triggerAthenaQuery);
+    viewModeDropdown.addEventListener("change", applyViewMode);
     downloadCsvBtn.addEventListener("click", () => {
       if (queryDownloadLink.href) {
         window.open(queryDownloadLink.href, '_blank');
@@ -808,6 +1037,11 @@
     });
 
     // kick off initial load with overlay already visible
+    const initialViewMode = new URLSearchParams(window.location.search).get("view_mode");
+    if (initialViewMode === "account_health") {
+      viewModeDropdown.value = "account_health";
+    }
+    applyViewMode();
     showLoading();
     refreshDashboard();
     fetchPipelineStatus();
@@ -815,7 +1049,6 @@
 
     // Filters Collapsible
     const filtersHeader = document.getElementById("filtersHeader");
-    const filtersContent = document.getElementById("filtersContent");
     const filtersActions = document.getElementById("filtersActions");
     const filtersToggleIcon = document.getElementById("filtersToggleIcon");
     let filtersExpanded = true;
@@ -946,18 +1179,21 @@
       pipelineStatusEl.textContent = "Athena query running...";
 
       const payload = {};
+      const accountHealthMode = viewModeDropdown.value === "account_health";
       const cats = selectedCategories();
       if (cats.length) payload.category = cats;
 
-      const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
-      const maxLtv = Math.max(Number(ltvMin.value), Number(ltvMax.value));
-      payload.ltv_min = minLtv;
-      payload.ltv_max = maxLtv;
+      if (!accountHealthMode) {
+        const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
+        const maxLtv = Math.max(Number(ltvMin.value), Number(ltvMax.value));
+        payload.ltv_min = minLtv;
+        payload.ltv_max = maxLtv;
 
-      const minSpread = Math.min(Number(spreadMin.value), Number(spreadMax.value));
-      const maxSpread = Math.max(Number(spreadMin.value), Number(spreadMax.value));
-      payload.spread_min = minSpread;
-      payload.spread_max = maxSpread;
+        const minSpread = Math.min(Number(spreadMin.value), Number(spreadMax.value));
+        const maxSpread = Math.max(Number(spreadMin.value), Number(spreadMax.value));
+        payload.spread_min = minSpread;
+        payload.spread_max = maxSpread;
+      }
 
       Object.entries(engagementInputs).forEach(([key, el]) => {
         if (el.checked) {

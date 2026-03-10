@@ -55,6 +55,18 @@ def _to_bool(value: Any) -> bool:
     return str(value).strip().lower() in {"true", "1", "yes", "y"}
 
 
+def _normalize_borrower_id(value: Any) -> str:
+    raw = str(value).strip()
+    if not raw:
+        return ""
+    upper = raw.upper()
+    if upper.startswith("CUST"):
+        digits = "".join(ch for ch in upper[4:] if ch.isdigit())
+        if digits:
+            return str(int(digits))
+    return raw
+
+
 def _categorize_marketing(rate_spread: float) -> str:
     if rate_spread > 1.25:
         return "Immediate Action"
@@ -338,6 +350,10 @@ def _load_from_cloud_pipeline_output() -> tuple[pd.DataFrame, str]:
         "city",
         "state",
         "credit_score",
+        "paperless_status",
+        "web_login_used",
+        "mobile_app_downloaded",
+        "mobile_app_logged_in",
     }
 
     missing_required = [field for field in required_fields if field not in df.columns]
@@ -346,10 +362,29 @@ def _load_from_cloud_pipeline_output() -> tuple[pd.DataFrame, str]:
         loans = _read_s3_csv(s3_client, f"{S3_RAW_PREFIX}loan_information.csv")
         market = _read_s3_csv(s3_client, f"{S3_RAW_PREFIX}market_equity.csv")
         engagement = _read_s3_csv(s3_client, f"{S3_RAW_PREFIX}borrower_engagement.csv")
+        
+        # Load account health status if needed
+        try:
+            account_health = _read_s3_csv(s3_client, f"{S3_RAW_PREFIX}account_health_status.csv")
+            # Rename custid to borrower_id for merging
+            account_health = account_health.rename(columns={"custid": "borrower_id"})
+            account_health["borrower_id"] = account_health["borrower_id"].map(_normalize_borrower_id)
+        except Exception:
+            account_health = None
 
         enriched = borrowers.merge(loans, on=["borrower_id", "property_id"], how="inner")
         enriched = enriched.merge(market, on="property_id", how="inner")
         enriched = enriched.merge(engagement, on="borrower_id", how="inner")
+        enriched["borrower_id"] = enriched["borrower_id"].map(_normalize_borrower_id)
+        
+        # Merge account health status if available
+        if account_health is not None:
+            enriched = enriched.merge(
+                account_health[["borrower_id", "paperless_status", "web_login_used", "mobile_app_downloaded", "mobile_app_logged_in"]],
+                on="borrower_id",
+                how="left"
+            )
+        
         enriched["full_name"] = enriched["first_name"] + " " + enriched["last_name"]
         enriched["rate_spread"] = enriched["current_interest_rate"] - enriched["market_rate_offer"]
         enriched["marketing_category"] = enriched["rate_spread"].map(_categorize_marketing)
@@ -370,7 +405,13 @@ def _load_from_cloud_pipeline_output() -> tuple[pd.DataFrame, str]:
             "email_open_last_30d",
             "mobile_app_login_last_30d",
             "sms_opt_in",
+            "paperless_status",
+            "web_login_used",
+            "mobile_app_downloaded",
+            "mobile_app_logged_in",
         ]
+        if "borrower_id" in df.columns:
+            df["borrower_id"] = df["borrower_id"].map(_normalize_borrower_id)
         df = df.merge(enriched[keep_cols], on="borrower_id", how="left", suffixes=("", "_enriched"))
 
         for col in keep_cols:
@@ -399,6 +440,14 @@ def _load_from_cloud_pipeline_output() -> tuple[pd.DataFrame, str]:
         df["mobile_app_login_last_30d"] = False
     if "sms_opt_in" not in df.columns:
         df["sms_opt_in"] = False
+    if "paperless_status" not in df.columns:
+        df["paperless_status"] = "N/A"
+    if "web_login_used" not in df.columns:
+        df["web_login_used"] = False
+    if "mobile_app_downloaded" not in df.columns:
+        df["mobile_app_downloaded"] = False
+    if "mobile_app_logged_in" not in df.columns:
+        df["mobile_app_logged_in"] = False
 
     if "rate_spread" not in df.columns and {"current_interest_rate", "market_rate_offer"}.issubset(set(df.columns)):
         df["rate_spread"] = df["current_interest_rate"] - df["market_rate_offer"]
@@ -420,10 +469,28 @@ def _derive_from_cloud_raw_data(s3_client: Any) -> pd.DataFrame:
     loans = _read_s3_csv(s3_client, f"{S3_RAW_PREFIX}loan_information.csv")
     market = _read_s3_csv(s3_client, f"{S3_RAW_PREFIX}market_equity.csv")
     engagement = _read_s3_csv(s3_client, f"{S3_RAW_PREFIX}borrower_engagement.csv")
+    
+    # Load account health status
+    try:
+        account_health = _read_s3_csv(s3_client, f"{S3_RAW_PREFIX}account_health_status.csv")
+        account_health = account_health.rename(columns={"custid": "borrower_id"})
+        account_health["borrower_id"] = account_health["borrower_id"].map(_normalize_borrower_id)
+    except Exception:
+        account_health = None
 
     df = borrowers.merge(loans, on=["borrower_id", "property_id"], how="inner")
     df = df.merge(market, on="property_id", how="inner")
     df = df.merge(engagement, on="borrower_id", how="inner")
+    df["borrower_id"] = df["borrower_id"].map(_normalize_borrower_id)
+    
+    # Merge account health status if available
+    if account_health is not None:
+        df = df.merge(
+            account_health[["borrower_id", "paperless_status", "web_login_used", "mobile_app_downloaded", "mobile_app_logged_in"]],
+            on="borrower_id",
+            how="left"
+        )
+    
     df["rate_spread"] = df["current_interest_rate"] - df["market_rate_offer"]
     df["marketing_category"] = df["rate_spread"].map(_categorize_marketing)
     df["full_name"] = df["first_name"].astype(str) + " " + df["last_name"].astype(str)
@@ -440,6 +507,9 @@ def load_dashboard_data() -> tuple[pd.DataFrame, str]:
         "email_open_last_30d",
         "mobile_app_login_last_30d",
         "sms_opt_in",
+        "web_login_used",
+        "mobile_app_downloaded",
+        "mobile_app_logged_in",
     ]
     for col in bool_cols:
         if col in df.columns:
@@ -466,7 +536,7 @@ def load_dashboard_dataframe() -> pd.DataFrame:
     return df
 
 
-def build_payload(df: pd.DataFrame, source_key: str) -> dict[str, Any]:
+def build_payload(df: pd.DataFrame, source_key: str | None) -> dict[str, Any]:
     # Define required columns
     required_columns = [
         "borrower_id",
@@ -484,23 +554,47 @@ def build_payload(df: pd.DataFrame, source_key: str) -> dict[str, Any]:
         "email_open_last_30d",
         "mobile_app_login_last_30d",
         "sms_opt_in",
+        "paperless_status",
+        "web_login_used",
+        "mobile_app_downloaded",
+        "mobile_app_logged_in",
     ]
     
     # Only select columns that exist in the dataframe
     available_columns = [col for col in required_columns if col in df.columns]
     records = df[available_columns].to_dict(orient="records")
 
+    def _json_safe_value(key: str, value: Any) -> Any:
+        if pd.isna(value):
+            if key in {
+                "paperless_billing",
+                "email_open_last_30d",
+                "mobile_app_login_last_30d",
+                "sms_opt_in",
+                "web_login_used",
+                "mobile_app_downloaded",
+                "mobile_app_logged_in",
+            }:
+                return False
+            if key == "paperless_status":
+                return ""
+            return None
+        return value
+
     for record in records:
+        for key, value in list(record.items()):
+            record[key] = _json_safe_value(str(key), value)
+
         # Safely round numeric fields if they exist
-        if "current_interest_rate" in record:
+        if "current_interest_rate" in record and record["current_interest_rate"] is not None:
             record["current_interest_rate"] = round(float(record["current_interest_rate"]), 2)
-        if "market_rate_offer" in record:
+        if "market_rate_offer" in record and record["market_rate_offer"] is not None:
             record["market_rate_offer"] = round(float(record["market_rate_offer"]), 2)
-        if "monthly_savings_est" in record:
+        if "monthly_savings_est" in record and record["monthly_savings_est"] is not None:
             record["monthly_savings_est"] = round(float(record["monthly_savings_est"]), 2)
-        if "ltv_ratio" in record:
+        if "ltv_ratio" in record and record["ltv_ratio"] is not None:
             record["ltv_ratio"] = round(float(record["ltv_ratio"]), 2)
-        if "rate_spread" in record:
+        if "rate_spread" in record and record["rate_spread"] is not None:
             record["rate_spread"] = round(float(record["rate_spread"]), 2)
 
     categories = ["Immediate Action", "Hot Lead", "Watchlist", "Ineligible"]
@@ -534,7 +628,7 @@ def dashboard(request: Request) -> HTMLResponse:
         request,
         "dashboard.html",
         {
-            "data_json": json.dumps(payload),
+            "data_json": json.dumps(payload, allow_nan=False),
         },
     )
 
@@ -784,9 +878,22 @@ def _apply_filters_to_df(
     mobile_active: bool,
     paperless_enrolled: bool,
     sms_opted_in: bool,
+    web_login_used: bool,
+    mobile_app_downloaded: bool,
+    mobile_app_logged_in: bool,
 ) -> pd.DataFrame:
     # apply the same filter logic implemented in the frontend
     records = df
+
+    def _truthy_mask(column_name: str, include_open: bool = False) -> pd.Series:
+        if column_name not in records.columns:
+            return pd.Series([False] * len(records), index=records.index)
+        values = records[column_name].astype(str).str.strip().str.lower()
+        truthy = {"true", "1", "yes", "y"}
+        if include_open:
+            truthy.add("open")
+        return values.isin(truthy)
+
     if categories:
         records = records[records["marketing_category"].isin(categories)]
 
@@ -805,13 +912,22 @@ def _apply_filters_to_df(
         records = records[records["rate_spread"].between(spread_min, spread_max, inclusive="both")]
 
     if email_active:
-        records = records[records["email_open_last_30d"] == True]
+        records = records[_truthy_mask("email_open_last_30d")]
     if mobile_active:
-        records = records[records["mobile_app_login_last_30d"] == True]
+        records = records[_truthy_mask("mobile_app_login_last_30d")]
     if paperless_enrolled:
-        records = records[records["paperless_billing"] == True]
+        if "paperless_status" in records.columns:
+            records = records[_truthy_mask("paperless_status", include_open=True)]
+        else:
+            records = records[_truthy_mask("paperless_billing")]
     if sms_opted_in:
-        records = records[records["sms_opt_in"] == True]
+        records = records[_truthy_mask("sms_opt_in")]
+    if web_login_used:
+        records = records[_truthy_mask("web_login_used")]
+    if mobile_app_downloaded:
+        records = records[_truthy_mask("mobile_app_downloaded")]
+    if mobile_app_logged_in:
+        records = records[_truthy_mask("mobile_app_logged_in")]
 
     return records
 
@@ -827,6 +943,9 @@ def query_dashboard(
     mobile_active: str | None = None,
     paperless_enrolled: str | None = None,
     sms_opted_in: str | None = None,
+    web_login_used: str | None = None,
+    mobile_app_downloaded: str | None = None,
+    mobile_app_logged_in: str | None = None,
 ) -> dict[str, Any]:
     """Return a payload similar to the root dashboard but filtered according to query parameters.
 
@@ -846,6 +965,9 @@ def query_dashboard(
         mobile_active=_to_bool_query(mobile_active),
         paperless_enrolled=_to_bool_query(paperless_enrolled),
         sms_opted_in=_to_bool_query(sms_opted_in),
+        web_login_used=_to_bool_query(web_login_used),
+        mobile_app_downloaded=_to_bool_query(mobile_app_downloaded),
+        mobile_app_logged_in=_to_bool_query(mobile_app_logged_in),
     )
 
     source = None
