@@ -117,8 +117,7 @@ The dashboard now has a **View** dropdown in the header:
 Account Health metrics are displayed directly (not filtered by separate account-health checkboxes).
 For **Mobile App Usage**, the UI treats a borrower as active if either:
 
-- `mobile_app_logged_in` is true, or
-- `mobile_app_login_last_30d` is true.
+- `mobile_app_logged_in` is true
 
 The selected view is included in the shareable URL via `view_mode`.
 
