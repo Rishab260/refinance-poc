@@ -26,12 +26,14 @@ SOURCE_TABLES = [
     "loan_information_csv",
     "market_equity_csv",
     "borrower_engagement_csv",
+    "account_health_status_csv",
 ]
 TABLE_SOURCE_PREFIX = {
     "borrower_information_csv": "raw/borrower_information/",
     "loan_information_csv": "raw/loan_information/",
     "market_equity_csv": "raw/market_equity/",
     "borrower_engagement_csv": "raw/borrower_engagement/",
+    "account_health_status_csv": "raw/account_health_status/",
 }
 
 # IAM Role names
@@ -96,6 +98,28 @@ def create_or_replace_glue_source_tables(glue_client, database):
             {"Name": "email_open_last_30d", "Type": "string"},
             {"Name": "mobile_app_login_last_30d", "Type": "string"},
             {"Name": "sms_opt_in", "Type": "string"},
+        ],
+        "account_health_status_csv": [
+            {"Name": "custid", "Type": "string"},
+            {"Name": "address", "Type": "string"},
+            {"Name": "city", "Type": "string"},
+            {"Name": "email", "Type": "string"},
+            {"Name": "firstname", "Type": "string"},
+            {"Name": "lastname", "Type": "string"},
+            {"Name": "phone", "Type": "string"},
+            {"Name": "state", "Type": "string"},
+            {"Name": "loannbr", "Type": "string"},
+            {"Name": "mobile_app_downloaded", "Type": "string"},
+            {"Name": "mobile_app_logged_in", "Type": "string"},
+            {"Name": "new_borrower_within_60_days", "Type": "string"},
+            {"Name": "paperless_status", "Type": "string"},
+            {"Name": "web_login_used", "Type": "string"},
+            {"Name": "loan1", "Type": "string"},
+            {"Name": "loanamt1", "Type": "double"},
+            {"Name": "loanintrt1", "Type": "double"},
+            {"Name": "loan2", "Type": "string"},
+            {"Name": "loanamt2", "Type": "double"},
+            {"Name": "loanintrt2", "Type": "double"},
         ],
     }
 
@@ -461,6 +485,10 @@ def _default_view_sql() -> str:
             be.email_open_last_30d,
             be.mobile_app_login_last_30d,
             be.sms_opt_in,
+            ahs.paperless_status,
+            ahs.web_login_used,
+            ahs.mobile_app_downloaded,
+            ahs.mobile_app_logged_in,
             CASE 
                 WHEN er.match_id IS NOT NULL THEN er.match_id
                 ELSE CAST(bi.borrower_id AS VARCHAR)
@@ -482,6 +510,8 @@ def _default_view_sql() -> str:
             market_equity_csv me ON bi.property_id = me.property_id
         INNER JOIN
             borrower_engagement_csv be ON bi.borrower_id = be.borrower_id
+        LEFT JOIN
+            account_health_status_csv ahs ON CAST(bi.borrower_id AS VARCHAR) = ahs.custid
     )
     SELECT
         borrower_id,
@@ -494,7 +524,11 @@ def _default_view_sql() -> str:
         paperless_billing,
         email_open_last_30d,
         mobile_app_login_last_30d,
-        sms_opt_in
+        sms_opt_in,
+        paperless_status,
+        web_login_used,
+        mobile_app_downloaded,
+        mobile_app_logged_in
     FROM
         ranked_borrowers
     WHERE
