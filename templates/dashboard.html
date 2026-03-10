@@ -508,14 +508,6 @@
       return `${(value || 0).toFixed(2)}%`;
     }
 
-    function isTrueish(value) {
-      return value === true || value === "TRUE" || value === "true" || value === "OPEN";
-    }
-
-    function isMobileUsageActive(record) {
-      return isTrueish(record.mobile_app_logged_in) || isTrueish(record.mobile_app_login_last_30d);
-    }
-
     function selectedCategories() {
       return Array.from(categoryFilter.selectedOptions).map((o) => o.value);
     }
@@ -595,13 +587,21 @@
       }
 
       // Count borrowers with each status (handling both boolean and string values)
-      const paperlessCount = records.filter(r => isTrueish(r.paperless_status)).length;
+      const paperlessCount = records.filter(r => 
+        r.paperless_status === "OPEN" || r.paperless_status === true || r.paperless_status === "true"
+      ).length;
       
-      const webLoginCount = records.filter(r => isTrueish(r.web_login_used)).length;
+      const webLoginCount = records.filter(r => 
+        r.web_login_used === true || r.web_login_used === "TRUE" || r.web_login_used === "true"
+      ).length;
       
-      const mobileDownloadCount = records.filter(r => isTrueish(r.mobile_app_downloaded)).length;
+      const mobileDownloadCount = records.filter(r => 
+        r.mobile_app_downloaded === true || r.mobile_app_downloaded === "TRUE" || r.mobile_app_downloaded === "true"
+      ).length;
       
-      const mobileLoginCount = records.filter(r => isMobileUsageActive(r)).length;
+      const mobileLoginCount = records.filter(r => 
+        r.mobile_app_logged_in === true || r.mobile_app_logged_in === "TRUE" || r.mobile_app_logged_in === "true"
+      ).length;
 
       // Calculate percentages
       const paperlessRate = (paperlessCount / total) * 100;
@@ -735,11 +735,14 @@
     function updateAccountHealthChart(records) {
       const total = records.length;
 
+      // Helper function to check boolean values (handles strings and booleans)
+      const isTrue = (val) => val === true || val === "TRUE" || val === "true" || val === "OPEN";
+
       // Count each metric
-      const paperlessCount = records.filter(r => isTrueish(r.paperless_status)).length;
-      const webLoginCount = records.filter(r => isTrueish(r.web_login_used)).length;
-      const mobileDownloadCount = records.filter(r => isTrueish(r.mobile_app_downloaded)).length;
-      const mobileLoginCount = records.filter(r => isMobileUsageActive(r)).length;
+      const paperlessCount = records.filter(r => isTrue(r.paperless_status)).length;
+      const webLoginCount = records.filter(r => isTrue(r.web_login_used)).length;
+      const mobileDownloadCount = records.filter(r => isTrue(r.mobile_app_downloaded)).length;
+      const mobileLoginCount = records.filter(r => isTrue(r.mobile_app_logged_in)).length;
 
       upsertChart("accountHealthChart", {
         type: "bar",
@@ -776,6 +779,8 @@
     }
 
     function updateEngagementByCategoryChart(records) {
+      const isTrue = (val) => val === true || val === "TRUE" || val === "true" || val === "OPEN";
+      
       const categoryData = {};
       dashboardData.categories.forEach(cat => {
         categoryData[cat] = {
@@ -791,10 +796,10 @@
         const cat = r.marketing_category;
         if (categoryData[cat]) {
           categoryData[cat].total += 1;
-          if (isTrueish(r.paperless_status)) categoryData[cat].paperless += 1;
-          if (isTrueish(r.web_login_used)) categoryData[cat].webLogin += 1;
-          if (isTrueish(r.mobile_app_downloaded)) categoryData[cat].mobileDownload += 1;
-          if (isMobileUsageActive(r)) categoryData[cat].mobileLogin += 1;
+          if (isTrue(r.paperless_status)) categoryData[cat].paperless += 1;
+          if (isTrue(r.web_login_used)) categoryData[cat].webLogin += 1;
+          if (isTrue(r.mobile_app_downloaded)) categoryData[cat].mobileDownload += 1;
+          if (isTrue(r.mobile_app_logged_in)) categoryData[cat].mobileLogin += 1;
         }
       });
 
