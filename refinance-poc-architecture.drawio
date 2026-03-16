@@ -1,0 +1,291 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.6.3">
+  <diagram id="refi-arch-01" name="Refi-POC-Architecture">
+    <mxGraphModel dx="516" dy="295" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=7;fontStyle=1;" value="Refi-Ready POC - End-to-End Architecture" vertex="1">
+          <mxGeometry height="30" width="700" x="30" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=7;" value="Legend: Solid arrows = current implementation | Dashed arrows = optional extension | Shape semantics: Actor/User, Cloud/LLM, Cylinder/Data store, Diamond/Validation" vertex="1">
+          <mxGeometry height="20" width="700" x="30" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="layer_user" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F1FF;strokeColor=#6C8EBF;fontStyle=1;fontSize=7;" value="User &amp;amp; UI Layer" vertex="1">
+          <mxGeometry height="420" width="500" x="30" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="user_actor" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;fontSize=7;" value="Analyst/User" vertex="1">
+          <mxGeometry height="80" width="36" x="45" y="155" as="geometry" />
+        </mxCell>
+        <mxCell id="browser" parent="1" style="rounded=1;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#6C8EBF;fontSize=7;" value="Web Dashboard UI\n(templates/dashboard.html)\n- KPI + charts\n- Tabulator tables\n- Filters + Run actions\n- S3 source selector" vertex="1">
+          <mxGeometry height="190" width="260" x="95" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="shareable" parent="1" style="shape=note;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#6C8EBF;fontSize=7;" value="Shareable URL\n(filter state in query params)" vertex="1">
+          <mxGeometry height="80" width="130" x="365" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="optional_llm" parent="1" style="shape=cloud;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFF2CC;strokeColor=#D6B656;dashed=1;fontSize=7;" value="Optional LLM Agent\nPrompt -&amp;gt; Filter JSON\n(Ollama/llama.cpp/vLLM)" vertex="1">
+          <mxGeometry height="95" width="170" x="325" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="llm_model" parent="1" style="shape=hexagon;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFF2CC;strokeColor=#D6B656;dashed=1;fontSize=7;" value="Local Model Runtime\nLlama/Qwen/Mistral\nStructured JSON output" vertex="1">
+          <mxGeometry height="90" width="175" x="325" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="llm_prompt_template" parent="1" style="shape=note;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFF2CC;strokeColor=#D6B656;dashed=1;fontSize=7;" value="Prompt Template\n(system + few-shot)" vertex="1">
+          <mxGeometry height="70" width="165" x="140" y="355" as="geometry" />
+        </mxCell>
+        <mxCell id="llm_json_contract" parent="1" style="shape=note;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFF2CC;strokeColor=#D6B656;dashed=1;fontSize=7;" value="JSON Contract\n{view_mode, category[], ltv_min/max, spread_min/max, confidence}" vertex="1">
+          <mxGeometry height="60" width="355" x="140" y="435" as="geometry" />
+        </mxCell>
+        <mxCell id="layer_app" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF7EA;strokeColor=#82B366;fontStyle=1;fontSize=7;" value="Application Layer (Local FastAPI Service)" vertex="1">
+          <mxGeometry height="440" width="840" x="570" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="fastapi" parent="1" style="shape=rectangle;rounded=1;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=7;" value="FastAPI App\n(app/main.py)\nLoads latest output CSV\nBuilds dashboard payload" vertex="1">
+          <mxGeometry height="115" width="210" x="580" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="api_endpoints" parent="1" style="shape=component;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=7;" value="REST API Endpoints\n/\n/api/data\n/api/pipeline/run\n/api/pipeline/status\n/api/athena/run\n/api/athena/download\n/api/s3/files\n/api/s3/load" vertex="1">
+          <mxGeometry height="200" width="200" x="840" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="pipeline_bg" parent="1" style="shape=rectangle;rounded=1;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=7;" value="Background Pipeline Runner\n(subprocess + thread)\nInvokes scripts/run_pipeline.py\nTracks run status + logs" vertex="1">
+          <mxGeometry height="110" width="220" x="1140" y="115" as="geometry" />
+        </mxCell>
+        <mxCell id="athena_only" parent="1" style="shape=hexagon;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=7;" value="Athena-Only Query Path\nRefresh view + run filtered query\nReturns execution_id + CSV path" vertex="1">
+          <mxGeometry height="80" width="220" x="1174" y="275" as="geometry" />
+        </mxCell>
+        <mxCell id="llm_endpoint" parent="1" style="shape=hexagon;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#EAF7EA;strokeColor=#82B366;dashed=1;fontSize=7;" value="Optional Endpoint\nPOST /api/filters/ai\n(prompt, context)" vertex="1">
+          <mxGeometry height="70" width="180" x="610" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="llm_guardrails" parent="1" style="shape=rhombus;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#EAF7EA;strokeColor=#82B366;dashed=1;fontSize=7;" value="Guardrails + Validation\nAllowed fields only\nRange clamp + schema check" vertex="1">
+          <mxGeometry height="70" width="210" x="820" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="llm_mapper" parent="1" style="shape=parallelogram;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#EAF7EA;strokeColor=#82B366;dashed=1;fontSize=7;" value="Filter Mapper\nApply JSON -&amp;gt; existing params\n/api/data or /api/athena/run" vertex="1">
+          <mxGeometry height="70" width="250" x="1060" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="llm_fallback" parent="1" style="shape=note;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#EAF7EA;strokeColor=#82B366;dashed=1;fontSize=7;" value="Fallback Rule Parser\n(regex + deterministic rules)\nUsed if AI confidence is low" vertex="1">
+          <mxGeometry height="65" width="300" x="610" y="450" as="geometry" />
+        </mxCell>
+        <mxCell id="layer_orch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FCE8E6;strokeColor=#B85450;fontStyle=1;fontSize=7;" value="Orchestration &amp;amp; Setup Scripts" vertex="1">
+          <mxGeometry height="200" width="1300" x="30" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="run_poc" parent="1" style="shape=document;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#B85450;fontSize=7;" value="run_poc.py\nChecks AWS creds + IAM roles\nRuns setup + pipeline\nOptional QuickSight step" vertex="1">
+          <mxGeometry height="120" width="230" x="70" y="605" as="geometry" />
+        </mxCell>
+        <mxCell id="setup_infra" parent="1" style="shape=document;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#B85450;fontSize=7;" value="scripts/setup_infrastructure.py\nCreate/verify\n- S3 bucket\n- Glue database\n- Glue crawler" vertex="1">
+          <mxGeometry height="120" width="230" x="350" y="605" as="geometry" />
+        </mxCell>
+        <mxCell id="run_pipeline" parent="1" style="shape=document;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#B85450;fontSize=7;" value="scripts/run_pipeline.py\n1) Upload CSVs to S3 raw/\n2) Create Glue source tables\n3) Run crawler\n4) Run Entity Resolution\n5) Build Athena unified view\n6) Execute qualification SQL\n7) Write output CSV to S3" vertex="1">
+          <mxGeometry height="150" width="400" x="650" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="setup_quicksight" parent="1" style="shape=document;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#B85450;fontSize=7;" value="scripts/setup_quicksight.py\nQuickSight source + dataset\n(unified_refi_dataset)\nDashboard setup steps" vertex="1">
+          <mxGeometry height="120" width="220" x="1090" y="605" as="geometry" />
+        </mxCell>
+        <mxCell id="layer_data" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontStyle=1;fontSize=7;" value="Data Sources &amp;amp; AWS Data Platform" vertex="1">
+          <mxGeometry height="500" width="1760" x="30" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="local_data" parent="1" style="shape=folder;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#D6B656;fontSize=7;" value="Local Data Folder\n(data/*.csv)\n- borrower_information\n- loan_information\n- market_equity\n- borrower_engagement\n- account_health_status" vertex="1">
+          <mxGeometry height="150" width="240" x="70" y="900" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_bucket" parent="1" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#FFFFFF;strokeColor=#D6B656;fontStyle=1;fontSize=7;" value="Amazon S3\nrefi-ready-poc-dev\nraw/ | output/ | output/athena/ | resolved/ | athena-results/" vertex="1">
+          <mxGeometry height="240" width="380" x="360" y="880" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_raw" parent="s3_bucket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9E6;strokeColor=#D6B656;fontSize=7;" value="raw/\nsource CSV uploads" vertex="1">
+          <mxGeometry height="60" width="150" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_resolved" parent="s3_bucket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9E6;strokeColor=#D6B656;fontSize=7;" value="resolved/\nentity resolution output" vertex="1">
+          <mxGeometry height="60" width="150" x="190" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_output" parent="s3_bucket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9E6;strokeColor=#D6B656;fontSize=7;" value="output/ + output/athena/\nfinal borrower CSVs" vertex="1">
+          <mxGeometry height="60" width="150" x="20" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_athena" parent="s3_bucket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9E6;strokeColor=#D6B656;fontSize=7;" value="athena-results/\nAthena query artifacts" vertex="1">
+          <mxGeometry height="60" width="150" x="190" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="glue" parent="1" style="shape=hexagon;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#D6B656;fontSize=7;" value="AWS Glue\nData Catalog + Crawler\nDatabase: refi_ready_db\nTables: borrower/loan/market\nengagement/account_health" vertex="1">
+          <mxGeometry height="150" width="250" x="820" y="900" as="geometry" />
+        </mxCell>
+        <mxCell id="entity_resolution" parent="1" style="shape=hexagon;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#D6B656;fontSize=7;" value="AWS Entity Resolution\nSchema: borrower_schema_v3\nWorkflow: borrower_matching_workflow_v3\nOutputs match_id groups" vertex="1">
+          <mxGeometry height="150" width="260" x="1130" y="900" as="geometry" />
+        </mxCell>
+        <mxCell id="athena" parent="1" style="shape=hexagon;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#D6B656;fontSize=7;" value="Amazon Athena\n- unified_refi_dataset view\n- qualification SQL (filters)\n- query execution IDs" vertex="1">
+          <mxGeometry height="150" width="260" x="1450" y="900" as="geometry" />
+        </mxCell>
+        <mxCell id="quicksight" parent="1" style="shape=hexagon;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#D6B656;dashed=1;fontSize=7;" value="Amazon QuickSight (Optional)\nAthena source + dataset\nInteractive BI dashboard" vertex="1">
+          <mxGeometry height="130" width="260" x="1450" y="1080" as="geometry" />
+        </mxCell>
+        <mxCell id="iam" parent="1" style="shape=note;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#D6B656;fontSize=7;" value="IAM Roles &amp;amp; Policies\nRefiReadyGlueRole\nRefiReadyEntityResolutionRole\nQuickSight + S3 policies" vertex="1">
+          <mxGeometry height="130" width="260" x="820" y="1080" as="geometry" />
+        </mxCell>
+        <mxCell id="outputs" parent="1" style="shape=note;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFFFFF;strokeColor=#D6B656;fontSize=7;" value="Outputs\n- Refi-ready audience CSV\n- Query-only CSV exports\n- Dashboard charts/KPIs/tables\n- Pipeline logs + status" vertex="1">
+          <mxGeometry height="130" width="280" x="1130" y="1080" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="browser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="api_endpoints">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" edge="1" parent="1" source="user_actor" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="browser">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="api_endpoints" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="pipeline_bg" value="POST /api/pipeline/run">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="pipeline_bg" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="run_pipeline" value="subprocess">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="run_poc" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="setup_infra" value="orchestration">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="run_poc" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="run_pipeline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="run_poc" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="setup_quicksight">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="local_data" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="s3_raw" value="upload">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="s3_raw" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="glue" value="crawl/catalog">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="glue" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="entity_resolution" value="match workflow input">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="entity_resolution" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="s3_resolved" value="resolved records">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="glue" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="athena" value="query sources">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="s3_resolved" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="athena" value="read resolved output">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="athena" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="s3_output" value="write result CSV">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" edge="1" parent="1" source="athena" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="s3_athena" value="query artifacts">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" edge="1" parent="1" source="fastapi" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;exitX=0.35;exitY=1;entryX=0.1;entryY=0;fontSize=7;" target="s3_output" value="read latest output">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="680" y="790" />
+              <mxPoint x="430" y="790" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e16" edge="1" parent="1" source="api_endpoints" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="athena_only" value="/api/athena/run">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" edge="1" parent="1" source="athena_only" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="athena" value="execute_athena_query">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" edge="1" parent="1" source="api_endpoints" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;exitX=0.6;exitY=1;entryX=0.55;entryY=0;fontSize=7;" target="s3_output" value="CSV download">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="960" y="790" />
+              <mxPoint x="530" y="790" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e19" edge="1" parent="1" source="setup_quicksight" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;dashed=1;fontSize=7;" target="quicksight" value="Athena source">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" edge="1" parent="1" source="quicksight" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;dashed=1;fontSize=7;" target="athena" value="dataset query">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e21" edge="1" parent="1" source="iam" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="setup_infra" value="permissions">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e22" edge="1" parent="1" source="iam" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="run_pipeline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e23" edge="1" parent="1" source="iam" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=7;" target="setup_quicksight">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e24" edge="1" parent="1" source="s3_output" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;exitX=1;exitY=0.75;entryX=0;entryY=0.55;fontSize=7;" target="outputs" value="publish output">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="760" y="1020" />
+              <mxPoint x="1100" y="1020" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e25" edge="1" parent="1" source="browser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;exitX=0.35;exitY=1;entryX=0;entryY=0.2;fontSize=7;" target="outputs" value="visualize">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="185" y="790" />
+              <mxPoint x="1020" y="790" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e26" edge="1" parent="1" source="optional_llm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.25;entryX=0;entryY=0.2;fontSize=7;" target="api_endpoints" value="optional prompt flow">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="630" y="270" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e27" edge="1" parent="1" source="browser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;dashed=1;fontSize=7;" target="optional_llm" value="UI prompt">
+          <mxGeometry relative="1" x="-0.1143" y="5" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e28" edge="1" parent="1" source="optional_llm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;dashed=1;fontSize=7;exitX=0.55;exitY=0.95;exitDx=0;exitDy=0;exitPerimeter=0;" target="llm_model" value="model inference">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="420" y="340" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e29" edge="1" parent="1" source="optional_llm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.7;entryX=0;entryY=0.4;fontSize=7;" target="llm_endpoint" value="optional API call">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="560" y="325" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e30" edge="1" parent="1" source="llm_model" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.7;fontSize=7;" target="llm_endpoint" value="runtime backend">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="560" y="405" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e31" edge="1" parent="1" source="llm_endpoint" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.45;entryX=0;entryY=0.55;fontSize=7;" target="llm_guardrails" value="validate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e32" edge="1" parent="1" source="llm_guardrails" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=7;" target="llm_mapper" value="normalized filters">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e33" edge="1" parent="1" source="llm_mapper" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;dashed=1;exitX=0.2;exitY=0;entryX=1;entryY=0.95;fontSize=7;" target="api_endpoints" value="reuse existing APIs">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1120" y="335" />
+              <mxPoint x="1120" y="315" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e34" edge="1" parent="1" source="llm_mapper" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.35;entryX=0;entryY=0.8;fontSize=7;" target="athena_only" value="optional direct query">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e35" edge="1" parent="1" source="llm_prompt_template" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.35;fontSize=7;" target="optional_llm" value="inject prompt context">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e36" edge="1" parent="1" source="llm_json_contract" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.2;entryX=0.15;entryY=1;fontSize=7;" target="llm_guardrails" value="enforce schema">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="560" y="470" />
+              <mxPoint x="790" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e37" edge="1" parent="1" source="llm_guardrails" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;dashed=1;exitX=0.3;exitY=1;entryX=0.7;entryY=0;fontSize=7;" target="llm_fallback" value="fallback on low confidence">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e38" edge="1" parent="1" source="llm_fallback" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=12;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.7;entryX=0.4;entryY=1;fontSize=7;" target="llm_mapper" value="deterministic filters">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="960" y="510" />
+              <mxPoint x="1160" y="510" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
