@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.6.3">
   <diagram id="refi-arch-01" name="Refi-POC-Architecture">
-    <mxGraphModel dx="1183" dy="419" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+    <mxGraphModel dx="1433" dy="507" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -26,7 +26,7 @@
           <mxGeometry height="95" width="170" x="360" y="247.5" as="geometry" />
         </mxCell>
         <mxCell id="llm_model" parent="1" style="shape=hexagon;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFF2CC;strokeColor=#D6B656;dashed=1;fontSize=7;" value="Local Model Runtime\nLlama/Qwen/Mistral\nStructured JSON output" vertex="1">
-          <mxGeometry height="90" width="175" x="325" y="360" as="geometry" />
+          <mxGeometry height="90" width="175" x="342.5" y="355" as="geometry" />
         </mxCell>
         <mxCell id="llm_prompt_template" parent="1" style="shape=note;whiteSpace=wrap;html=1;overflow=hidden;fillColor=#FFF2CC;strokeColor=#D6B656;dashed=1;fontSize=7;" value="Prompt Template\n(system + few-shot)" vertex="1">
           <mxGeometry height="70" width="165" x="140" y="355" as="geometry" />
@@ -293,6 +293,79 @@
               <mxPoint x="1160" y="510" />
             </Array>
           </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="exec-view-01" name="Executive View">
+    <mxGraphModel dx="1433" dy="507" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="ex_title" value="Refi-Ready Program: Executive Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="700" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_subtitle" value="High-level business flow from source data to refinance opportunity outcomes" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="55" width="780" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_users" value="Business Users\n(Retail/Lending Ops, Marketing, Leadership)" style="shape=rectangle;rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F1FF;strokeColor=#6C8EBF;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="180" width="230" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_dashboard" value="Executive Dashboard\nRefinance KPIs, trends, and\nopportunity segments" style="shape=rectangle;rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF7EA;strokeColor=#82B366;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="180" width="250" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_platform" value="Refi Platform\nFastAPI services + pipeline orchestration\n(run/query controls, status, exports)" style="shape=rectangle;rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE8E6;strokeColor=#B85450;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="680" y="170" width="300" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_aws" value="AWS Data &amp; Analytics\nS3, Glue, Entity Resolution, Athena\n(optional QuickSight)" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="165" width="300" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_outputs" value="Business Outcomes\nPrioritized refi-ready audience\nEstimated savings + campaign targets\nOperational and executive reporting" style="shape=note;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9673A6;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="360" width="300" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_llm" value="Optional AI Assistant\nNatural-language filtering\n(prompt → approved filter set)" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;dashed=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="680" y="360" width="300" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_e1" edge="1" parent="1" source="ex_users" target="ex_dashboard" value="Consumes insights" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_e2" edge="1" parent="1" source="ex_dashboard" target="ex_platform" value="Requests analytics" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_e3" edge="1" parent="1" source="ex_platform" target="ex_aws" value="Runs pipeline + queries" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_e4" edge="1" parent="1" source="ex_aws" target="ex_outputs" value="Produces results" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_e5" edge="1" parent="1" source="ex_outputs" target="ex_dashboard" value="Feeds KPIs + reporting" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;fontSize=11;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="830" y="530" />
+              <mxPoint x="830" y="230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="ex_e6" edge="1" parent="1" source="ex_llm" target="ex_platform" value="Optional prompt-based filtering" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;dashed=1;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex_e7" edge="1" parent="1" source="ex_dashboard" target="ex_llm" value="Optional AI interaction" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;dashed=1;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
