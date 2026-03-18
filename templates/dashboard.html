@@ -242,22 +242,27 @@
     </section>
 
     <aside class="hidden xl:block fixed right-6 top-6 w-96 bg-white border border-slate-200 rounded-xl p-4 shadow-sm z-40">
-      <h2 class="font-semibold mb-2">AI Agent</h2>
-      <p class="text-xs text-slate-600 mb-3">Prompt to Athena SQL using available filters only.</p>
-      <label for="agentPromptInput" class="text-sm font-medium">Prompt</label>
-      <textarea id="agentPromptInput" class="mt-1 w-full rounded-md border-slate-300 text-sm h-28" placeholder="Example: show hot leads with LTV under 75 and spread above 1"></textarea>
-      <div class="mt-3 flex items-center gap-2">
-        <button id="agentGenerateBtn" class="rounded-md bg-slate-700 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">Generate Query</button>
-        <button id="agentApplyFiltersBtn" class="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50" disabled>Apply & Run</button>
+      <div class="flex items-center justify-between cursor-pointer" id="agentHeader">
+        <h2 class="font-semibold">AI Agent</h2>
+        <span id="agentToggleIcon" class="text-slate-600 transition-transform">▼</span>
       </div>
-      <p id="agentStatus" class="text-xs text-slate-600 mt-2">Ready.</p>
-      <div class="mt-3">
-        <p class="text-xs font-medium text-slate-700 mb-1">Detected Filters</p>
-        <pre id="agentFiltersOutput" class="text-xs bg-slate-50 border border-slate-200 rounded-md p-2 h-20 overflow-auto">{}</pre>
-      </div>
-      <div class="mt-3">
-        <p class="text-xs font-medium text-slate-700 mb-1">Generated Athena SQL</p>
-        <pre id="agentSqlOutput" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 h-56 overflow-auto">-- Query will appear here</pre>
+      <div id="agentContent" class="mt-2">
+        <p class="text-xs text-slate-600 mb-3">Prompt to Athena SQL using available filters only.</p>
+        <label for="agentPromptInput" class="text-sm font-medium">Prompt</label>
+        <textarea id="agentPromptInput" class="mt-1 w-full rounded-md border-slate-300 text-sm h-28" placeholder="Example: show hot leads with LTV under 75 and spread above 1"></textarea>
+        <div class="mt-3 flex items-center gap-2">
+          <button id="agentGenerateBtn" class="rounded-md bg-slate-700 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">Generate Query</button>
+          <button id="agentApplyFiltersBtn" class="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50" disabled>Apply & Run</button>
+        </div>
+        <p id="agentStatus" class="text-xs text-slate-600 mt-2">Ready.</p>
+        <div class="mt-3">
+          <p class="text-xs font-medium text-slate-700 mb-1">Detected Filters</p>
+          <pre id="agentFiltersOutput" class="text-xs bg-slate-50 border border-slate-200 rounded-md p-2 h-20 overflow-auto">{}</pre>
+        </div>
+        <div class="mt-3">
+          <p class="text-xs font-medium text-slate-700 mb-1">Generated Athena SQL</p>
+          <pre id="agentSqlOutput" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 h-56 overflow-auto">-- Query will appear here</pre>
+        </div>
       </div>
     </aside>
   </div>
@@ -464,12 +469,27 @@
     const downloadCsvBtn = document.getElementById("downloadCsvBtn");
     const queryDownloadLink = document.getElementById("queryDownloadLink");
     const refreshDataBtn = document.getElementById("refreshDataBtn");
+    const agentHeader = document.getElementById("agentHeader");
+    const agentContent = document.getElementById("agentContent");
+    const agentToggleIcon = document.getElementById("agentToggleIcon");
     const agentPromptInput = document.getElementById("agentPromptInput");
     const agentGenerateBtn = document.getElementById("agentGenerateBtn");
     const agentApplyFiltersBtn = document.getElementById("agentApplyFiltersBtn");
     const agentStatus = document.getElementById("agentStatus");
     const agentFiltersOutput = document.getElementById("agentFiltersOutput");
     const agentSqlOutput = document.getElementById("agentSqlOutput");
+    let agentExpanded = true;
+
+    function toggleAgentPanel() {
+      agentExpanded = !agentExpanded;
+      if (agentExpanded) {
+        agentContent.style.display = "block";
+        agentToggleIcon.style.transform = "rotate(0deg)";
+      } else {
+        agentContent.style.display = "none";
+        agentToggleIcon.style.transform = "rotate(-90deg)";
+      }
+    }
 
     const colors = {
       "Immediate Action": "#E74C3C",
@@ -1122,6 +1142,9 @@
     viewModeDropdown.addEventListener("change", applyViewMode);
     if (agentGenerateBtn) {
       agentGenerateBtn.addEventListener("click", generateQueryFromPrompt);
+    }
+    if (agentHeader) {
+      agentHeader.addEventListener("click", toggleAgentPanel);
     }
     if (agentApplyFiltersBtn) {
       agentApplyFiltersBtn.addEventListener("click", async () => {
