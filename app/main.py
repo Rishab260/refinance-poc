@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import threading
+import importlib
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime, timezone
@@ -36,6 +37,8 @@ PIPELINE_SCRIPT = BASE_DIR / "scripts" / "run_pipeline.py"
 GLUE_DATABASE_NAME = "refi_ready_db"
 ATHENA_OUTPUT_LOCATION = f"s3://{S3_BUCKET_NAME}/athena-results/"
 FINAL_OUTPUT_LOCATION = f"s3://{S3_BUCKET_NAME}/{S3_OUTPUT_PREFIX}"
+
+ALLOWED_PROMPT_CATEGORIES = ["Immediate Action", "Hot Lead", "Watchlist", "Ineligible"]
 
 
 pipeline_state_lock = threading.Lock()
@@ -647,6 +650,119 @@ class PipelineRunRequest(BaseModel):
     # optional raw SQL overrides
     qualification_query: str | None = None
     view_query: str | None = None
+
+
+class AthenaPromptRequest(BaseModel):
+    prompt: str
+
+
+def _safe_float(value: Any, minimum: float, maximum: float) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return max(minimum, min(maximum, parsed))
+
+
+def _sanitize_prompt_filters(raw: dict[str, Any]) -> dict[str, Any]:
+    allowed_categories = set(ALLOWED_PROMPT_CATEGORIES)
+    output: dict[str, Any] = {}
+
+    categories = raw.get("category")
+    if isinstance(categories, str):
+        categories = [categories]
+    if isinstance(categories, list):
+        clean_categories: list[str] = []
+        for item in categories:
+            if isinstance(item, str) and item in allowed_categories and item not in clean_categories:
+                clean_categories.append(item)
+        if clean_categories:
+            output["category"] = clean_categories
+
+    ltv_min = _safe_float(raw.get("ltv_min"), 0.0, 100.0)
+    ltv_max = _safe_float(raw.get("ltv_max"), 0.0, 100.0)
+    if ltv_min is not None and ltv_max is not None and ltv_min > ltv_max:
+        ltv_min, ltv_max = ltv_max, ltv_min
+    if ltv_min is not None:
+        output["ltv_min"] = ltv_min
+    if ltv_max is not None:
+        output["ltv_max"] = ltv_max
+
+    spread_min = _safe_float(raw.get("spread_min"), 0.0, 3.0)
+    spread_max = _safe_float(raw.get("spread_max"), 0.0, 3.0)
+    if spread_min is not None and spread_max is not None and spread_min > spread_max:
+        spread_min, spread_max = spread_max, spread_min
+    if spread_min is not None:
+        output["spread_min"] = spread_min
+    if spread_max is not None:
+        output["spread_max"] = spread_max
+
+    return output
+
+
+def _filters_from_prompt(prompt: str) -> dict[str, Any]:
+    try:
+        openai_module = importlib.import_module("openai")
+    except ModuleNotFoundError as exc:
+        raise HTTPException(status_code=500, detail="OpenAI SDK is not installed. Add 'openai' to requirements.") from exc
+
+    openai_client_cls = getattr(openai_module, "OpenAI", None)
+    if openai_client_cls is None:
+        raise HTTPException(status_code=500, detail="OpenAI SDK is unavailable in current environment.")
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not configured.")
+
+    client = openai_client_cls(api_key=api_key)
+
+    system_prompt = (
+        "Extract only dashboard filter values from user text. "
+        "Return strict JSON with keys: category, ltv_min, ltv_max, spread_min, spread_max. "
+        "Allowed categories: Immediate Action, Hot Lead, Watchlist, Ineligible. "
+        "If a value is not present, set it to null. "
+        "Do not include any additional keys."
+    )
+
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+    )
+
+    content = completion.choices[0].message.content if completion.choices else "{}"
+    try:
+        parsed = json.loads(content or "{}")
+    except json.JSONDecodeError:
+        parsed = {}
+
+    if not isinstance(parsed, dict):
+        parsed = {}
+
+    return _sanitize_prompt_filters(parsed)
+
+
+@app.post("/api/athena/agent-query")
+def generate_athena_query_from_prompt(req: AthenaPromptRequest) -> dict[str, Any]:
+    prompt = (req.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt is required.")
+
+    filters = _filters_from_prompt(prompt)
+    query_request = PipelineRunRequest(**filters)
+    qualification_query = _build_qualification_sql_from_request(query_request)
+
+    return {
+        "model": "gpt-4o-mini",
+        "filters": filters,
+        "qualification_query": qualification_query,
+    }
 
 
 pipeline_run_args: list[str] = []
