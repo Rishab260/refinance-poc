@@ -255,21 +255,15 @@ def _sanitize_generated_sql(sql: Any) -> str:
     if not isinstance(sql, str):
         return ""
     cleaned = sql.strip()
-    cleaned = re.sub(r"^```(?:sql)?\\s*", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\\s*```$", "", cleaned)
+    cleaned = re.sub(r"^```(?:sql)?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
     cleaned = cleaned.strip().rstrip(";")
     return cleaned
 
 
 def _is_valid_qualification_sql(sql: str) -> bool:
     normalized = sql.strip().lower()
-    return (
-        normalized.startswith("with calculated_data as")
-        and "unified_refi_dataset" in normalized
-        and "from" in normalized
-        and "calculated_data" in normalized
-        and "select" in normalized
-    )
+    return "select" in normalized and "from" in normalized
 
 
 def _friendly_dtype(dtype: Any) -> str:
@@ -315,12 +309,7 @@ def _analyze_input_file_schemas() -> dict[str, Any]:
 def _schema_context_for_prompt() -> str:
     schema = _analyze_input_file_schemas()
     if not schema:
-        return (
-            "No local input CSV schema could be read. "
-            "Assume unified_refi_dataset has columns: borrower_id, first_name, last_name, "
-            "current_interest_rate, market_rate_offer, ltv_ratio, monthly_savings_est, "
-            "paperless_billing, email_open_last_30d, mobile_app_login_last_30d, sms_opt_in."
-        )
+        return "No local input CSV schema could be read."
 
     lines: list[str] = []
     for file_name, columns in schema.items():
@@ -338,18 +327,16 @@ def _schema_context_for_prompt() -> str:
 
 def _qualification_sql_from_prompt(prompt: str) -> str:
     client = _get_openai_client()
-    base_sql = _build_qualification_sql_from_request(None)
     schema_context = _schema_context_for_prompt()
     system_prompt = (
-        "Convert user intent into an Athena SQL query for refinance borrowers. "
-        "Before framing the query, analyze the provided input file schema and use only fields supported by that schema. "
+        "Convert user intent into an Athena SQL query. "
         "Return strict JSON with one key: qualification_query. "
         f"{schema_context}\n"
-        "Use this exact SQL template and only adjust filtering logic (WHERE clause) to satisfy user intent:\n"
-        f"{base_sql}\n"
-        "Rules: preserve the CTE name calculated_data, preserve selected columns, target Athena/Presto SQL, "
+        "Rules: query from unified_refi_dataset, target Athena/Presto SQL, "
         "and return only executable SQL text in qualification_query (no markdown). "
-        "If no filter is requested, return the template unchanged."
+        "Choose the simplest query structure that answers the user's question — "
+        "use a plain SELECT or aggregation when appropriate, not a CTE unless the complexity requires it. "
+        "Select only the columns needed to answer the question."
     )
 
     completion = client.chat.completions.create(
@@ -851,11 +838,10 @@ def _filters_from_prompt(prompt: str) -> dict[str, Any]:
     client = _get_openai_client()
 
     system_prompt = (
-        "Extract dashboard filter values from user text about mortgage refinance borrowers. "
+        "Extract dashboard filter values from user text. "
         "Return JSON with keys: category, ltv_min, ltv_max, spread_min, spread_max. "
-        "Categories can be any marketing segment such as Immediate Action, Hot Lead, Watchlist, Ineligible, or custom values. "
         "If a value is not mentioned, set it to null. "
-        "Interpret natural language descriptions of borrower criteria as filter ranges."
+        "Interpret natural language descriptions of criteria as filter ranges."
     )
 
     completion = client.chat.completions.create(
@@ -882,9 +868,6 @@ def generate_athena_query_from_prompt(req: AthenaPromptRequest) -> dict[str, Any
 
     filters = _filters_from_prompt(prompt)
     qualification_query = _qualification_sql_from_prompt(prompt)
-    if not qualification_query:
-        query_request = PipelineRunRequest(**filters)
-        qualification_query = _build_qualification_sql_from_request(query_request)
 
     return {
         "model": "gpt-4o-mini",
