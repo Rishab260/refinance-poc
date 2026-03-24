@@ -667,7 +667,6 @@ def _safe_float(value: Any, minimum: float, maximum: float) -> float | None:
 
 
 def _sanitize_prompt_filters(raw: dict[str, Any]) -> dict[str, Any]:
-    allowed_categories = set(ALLOWED_PROMPT_CATEGORIES)
     output: dict[str, Any] = {}
 
     categories = raw.get("category")
@@ -676,13 +675,13 @@ def _sanitize_prompt_filters(raw: dict[str, Any]) -> dict[str, Any]:
     if isinstance(categories, list):
         clean_categories: list[str] = []
         for item in categories:
-            if isinstance(item, str) and item in allowed_categories and item not in clean_categories:
+            if isinstance(item, str) and item not in clean_categories:
                 clean_categories.append(item)
         if clean_categories:
             output["category"] = clean_categories
 
-    ltv_min = _safe_float(raw.get("ltv_min"), 0.0, 100.0)
-    ltv_max = _safe_float(raw.get("ltv_max"), 0.0, 100.0)
+    ltv_min = _safe_float(raw.get("ltv_min"), 0.0, 999.0)
+    ltv_max = _safe_float(raw.get("ltv_max"), 0.0, 999.0)
     if ltv_min is not None and ltv_max is not None and ltv_min > ltv_max:
         ltv_min, ltv_max = ltv_max, ltv_min
     if ltv_min is not None:
@@ -690,8 +689,8 @@ def _sanitize_prompt_filters(raw: dict[str, Any]) -> dict[str, Any]:
     if ltv_max is not None:
         output["ltv_max"] = ltv_max
 
-    spread_min = _safe_float(raw.get("spread_min"), 0.0, 3.0)
-    spread_max = _safe_float(raw.get("spread_max"), 0.0, 3.0)
+    spread_min = _safe_float(raw.get("spread_min"), -100.0, 100.0)
+    spread_max = _safe_float(raw.get("spread_max"), -100.0, 100.0)
     if spread_min is not None and spread_max is not None and spread_min > spread_max:
         spread_min, spread_max = spread_max, spread_min
     if spread_min is not None:
@@ -719,11 +718,11 @@ def _filters_from_prompt(prompt: str) -> dict[str, Any]:
     client = openai_client_cls(api_key=api_key)
 
     system_prompt = (
-        "Extract only dashboard filter values from user text. "
-        "Return strict JSON with keys: category, ltv_min, ltv_max, spread_min, spread_max. "
-        "Allowed categories: Immediate Action, Hot Lead, Watchlist, Ineligible. "
-        "If a value is not present, set it to null. "
-        "Do not include any additional keys."
+        "Extract dashboard filter values from user text about mortgage refinance borrowers. "
+        "Return JSON with keys: category, ltv_min, ltv_max, spread_min, spread_max. "
+        "Categories can be any marketing segment such as Immediate Action, Hot Lead, Watchlist, Ineligible, or custom values. "
+        "If a value is not mentioned, set it to null. "
+        "Interpret natural language descriptions of borrower criteria as filter ranges."
     )
 
     completion = client.chat.completions.create(
