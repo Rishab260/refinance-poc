@@ -546,6 +546,7 @@
 
     const chartStore = {};
     let lastAgentFilters = null;
+    let lastAgentQualificationQuery = "";
 
     function fmtCurrency(value) {
       return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value || 0);
@@ -964,10 +965,11 @@
         }
 
         lastAgentFilters = body.filters || {};
+        lastAgentQualificationQuery = body.qualification_query || "";
         agentFiltersOutput.textContent = JSON.stringify(lastAgentFilters, null, 2);
         agentSqlOutput.textContent = body.qualification_query || "-- No query returned";
         agentStatus.textContent = `Generated with ${body.model || "gpt-4o-mini"}.`;
-        agentApplyFiltersBtn.disabled = !Object.keys(lastAgentFilters).length;
+        agentApplyFiltersBtn.disabled = false;
       } catch (_) {
         agentStatus.textContent = "Error: unable to reach server.";
       } finally {
@@ -1148,20 +1150,22 @@
     }
     if (agentApplyFiltersBtn) {
       agentApplyFiltersBtn.addEventListener("click", async () => {
-        if (!lastAgentFilters || !Object.keys(lastAgentFilters).length) {
-          agentStatus.textContent = "No filters available. Generate a query first.";
-          return;
+        const hasFilters = lastAgentFilters && Object.keys(lastAgentFilters).length;
+        if (hasFilters) {
+          applyAgentFilters(lastAgentFilters);
+          agentStatus.textContent = "Filters applied. Running Athena query...";
+        } else {
+          agentStatus.textContent = "No filters detected. Running Athena query from prompt...";
         }
-
-        applyAgentFilters(lastAgentFilters);
-        agentStatus.textContent = "Filters applied. Running Athena query...";
         agentApplyFiltersBtn.disabled = true;
 
         try {
-          await triggerAthenaQuery();
-          agentStatus.textContent = "Athena query completed with applied filters.";
+          const success = await triggerAthenaQuery({ qualificationQueryOverride: lastAgentQualificationQuery });
+          agentStatus.textContent = success
+            ? "Athena query completed from prompt."
+            : "Athena query failed from prompt.";
         } catch (_) {
-          agentStatus.textContent = "Athena query failed after applying filters.";
+          agentStatus.textContent = "Athena query failed from prompt.";
         } finally {
           agentApplyFiltersBtn.disabled = false;
         }
@@ -1311,7 +1315,7 @@
       }
     }
 
-    async function triggerAthenaQuery() {
+    async function triggerAthenaQuery(options = {}) {
       athenaQueryRunning = true;
       runQueryBtn.disabled = true;
       queryDownloadLink.style.display = 'none';
@@ -1324,10 +1328,16 @@
 
       const payload = {};
       const accountHealthMode = viewModeDropdown.value === "account_health";
-      const cats = selectedCategories();
-      if (cats.length) payload.category = cats;
+      const qualificationQueryOverride = options.qualificationQueryOverride || "";
 
-      if (!accountHealthMode) {
+      if (qualificationQueryOverride) {
+        payload.qualification_query = qualificationQueryOverride;
+      }
+
+      const cats = selectedCategories();
+      if (!qualificationQueryOverride && cats.length) payload.category = cats;
+
+      if (!qualificationQueryOverride && !accountHealthMode) {
         const minLtv = Math.min(Number(ltvMin.value), Number(ltvMax.value));
         const maxLtv = Math.max(Number(ltvMin.value), Number(ltvMax.value));
         payload.ltv_min = minLtv;
@@ -1339,12 +1349,14 @@
         payload.spread_max = maxSpread;
       }
 
-      Object.entries(engagementInputs).forEach(([key, el]) => {
-        if (el.checked) {
-          const apiKey = key === 'paperless' ? 'paperless_enrolled' : key === 'sms' ? 'sms_opted_in' : `${key}_active`;
-          payload[apiKey] = true;
-        }
-      });
+      if (!qualificationQueryOverride) {
+        Object.entries(engagementInputs).forEach(([key, el]) => {
+          if (el.checked) {
+            const apiKey = key === 'paperless' ? 'paperless_enrolled' : key === 'sms' ? 'sms_opted_in' : `${key}_active`;
+            payload[apiKey] = true;
+          }
+        });
+      }
 
       try {
         const response = await fetch("/api/athena/run", {
@@ -1370,16 +1382,19 @@
           downloadCsvBtn.onclick = () => window.open(href, '_blank');
           // Populate the table with CSV data
           await populateCsvTable(href);
+          return true;
         } else {
           const message = body.detail || "Unable to run query.";
           pipelineLogsEl.textContent = `Query error: ${message}`;
           pipelineStatusEl.textContent = `Error: ${message}`;
           athenaLoadingSpinner.style.display = 'none';
+          return false;
         }
       } catch (err) {
         pipelineLogsEl.textContent = "Query error: unable to reach server.";
         pipelineStatusEl.textContent = "Error: Unable to run query.";
         athenaLoadingSpinner.style.display = 'none';
+        return false;
       } finally {
         runQueryBtn.disabled = false;
         athenaQueryRunning = false;

@@ -6,6 +6,8 @@ import subprocess
 import sys
 import threading
 import importlib
+import re
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime, timezone
@@ -222,6 +224,150 @@ def _build_qualification_sql_from_request(req: PipelineRunRequest | None) -> str
     if filters:
         base += "\nWHERE\n    " + "\n    AND ".join(filters)
     return base
+
+
+def _get_openai_client() -> Any:
+    try:
+        openai_module = importlib.import_module("openai")
+    except ModuleNotFoundError as exc:
+        raise HTTPException(status_code=500, detail="OpenAI SDK is not installed. Add 'openai' to requirements.") from exc
+
+    openai_client_cls = getattr(openai_module, "OpenAI", None)
+    if openai_client_cls is None:
+        raise HTTPException(status_code=500, detail="OpenAI SDK is unavailable in current environment.")
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not configured.")
+
+    return openai_client_cls(api_key=api_key)
+
+
+def _parse_json_object(value: str | None) -> dict[str, Any]:
+    try:
+        parsed = json.loads(value or "{}")
+    except json.JSONDecodeError:
+        parsed = {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _sanitize_generated_sql(sql: Any) -> str:
+    if not isinstance(sql, str):
+        return ""
+    cleaned = sql.strip()
+    cleaned = re.sub(r"^```(?:sql)?\\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\\s*```$", "", cleaned)
+    cleaned = cleaned.strip().rstrip(";")
+    return cleaned
+
+
+def _is_valid_qualification_sql(sql: str) -> bool:
+    normalized = sql.strip().lower()
+    return (
+        normalized.startswith("with calculated_data as")
+        and "unified_refi_dataset" in normalized
+        and "from" in normalized
+        and "calculated_data" in normalized
+        and "select" in normalized
+    )
+
+
+def _friendly_dtype(dtype: Any) -> str:
+    if pd.api.types.is_integer_dtype(dtype):
+        return "integer"
+    if pd.api.types.is_float_dtype(dtype):
+        return "float"
+    if pd.api.types.is_bool_dtype(dtype):
+        return "boolean"
+    if pd.api.types.is_datetime64_any_dtype(dtype):
+        return "datetime"
+    return "string"
+
+
+@lru_cache(maxsize=1)
+def _analyze_input_file_schemas() -> dict[str, Any]:
+    files = [
+        "borrower_information.csv",
+        "loan_information.csv",
+        "market_equity.csv",
+        "borrower_engagement.csv",
+        "account_health_status.csv",
+    ]
+    data_dir = BASE_DIR / "data"
+    schema: dict[str, Any] = {}
+
+    for file_name in files:
+        file_path = data_dir / file_name
+        if not file_path.exists():
+            continue
+        try:
+            frame = pd.read_csv(file_path, nrows=500)
+            schema[file_name] = [
+                {"column": str(col), "dtype": _friendly_dtype(dtype)}
+                for col, dtype in frame.dtypes.items()
+            ]
+        except Exception as exc:
+            schema[file_name] = [{"column": "__error__", "dtype": str(exc)}]
+
+    return schema
+
+
+def _schema_context_for_prompt() -> str:
+    schema = _analyze_input_file_schemas()
+    if not schema:
+        return (
+            "No local input CSV schema could be read. "
+            "Assume unified_refi_dataset has columns: borrower_id, first_name, last_name, "
+            "current_interest_rate, market_rate_offer, ltv_ratio, monthly_savings_est, "
+            "paperless_billing, email_open_last_30d, mobile_app_login_last_30d, sms_opt_in."
+        )
+
+    lines: list[str] = []
+    for file_name, columns in schema.items():
+        if not isinstance(columns, list):
+            continue
+        col_str = ", ".join(
+            f"{entry.get('column')} ({entry.get('dtype')})"
+            for entry in columns
+            if isinstance(entry, dict) and entry.get("column")
+        )
+        lines.append(f"- {file_name}: {col_str}")
+
+    return "Input file schema (headers + inferred datatypes):\n" + "\n".join(lines)
+
+
+def _qualification_sql_from_prompt(prompt: str) -> str:
+    client = _get_openai_client()
+    base_sql = _build_qualification_sql_from_request(None)
+    schema_context = _schema_context_for_prompt()
+    system_prompt = (
+        "Convert user intent into an Athena SQL query for refinance borrowers. "
+        "Before framing the query, analyze the provided input file schema and use only fields supported by that schema. "
+        "Return strict JSON with one key: qualification_query. "
+        f"{schema_context}\n"
+        "Use this exact SQL template and only adjust filtering logic (WHERE clause) to satisfy user intent:\n"
+        f"{base_sql}\n"
+        "Rules: preserve the CTE name calculated_data, preserve selected columns, target Athena/Presto SQL, "
+        "and return only executable SQL text in qualification_query (no markdown). "
+        "If no filter is requested, return the template unchanged."
+    )
+
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+    )
+
+    content = completion.choices[0].message.content if completion.choices else "{}"
+    parsed = _parse_json_object(content)
+    sql = _sanitize_generated_sql(parsed.get("qualification_query"))
+    if _is_valid_qualification_sql(sql):
+        return sql
+    return ""
 
 
 def _run_athena_only(req: PipelineRunRequest | None) -> dict[str, Any]:
@@ -702,20 +848,7 @@ def _sanitize_prompt_filters(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def _filters_from_prompt(prompt: str) -> dict[str, Any]:
-    try:
-        openai_module = importlib.import_module("openai")
-    except ModuleNotFoundError as exc:
-        raise HTTPException(status_code=500, detail="OpenAI SDK is not installed. Add 'openai' to requirements.") from exc
-
-    openai_client_cls = getattr(openai_module, "OpenAI", None)
-    if openai_client_cls is None:
-        raise HTTPException(status_code=500, detail="OpenAI SDK is unavailable in current environment.")
-
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not configured.")
-
-    client = openai_client_cls(api_key=api_key)
+    client = _get_openai_client()
 
     system_prompt = (
         "Extract dashboard filter values from user text about mortgage refinance borrowers. "
@@ -736,13 +869,7 @@ def _filters_from_prompt(prompt: str) -> dict[str, Any]:
     )
 
     content = completion.choices[0].message.content if completion.choices else "{}"
-    try:
-        parsed = json.loads(content or "{}")
-    except json.JSONDecodeError:
-        parsed = {}
-
-    if not isinstance(parsed, dict):
-        parsed = {}
+    parsed = _parse_json_object(content)
 
     return _sanitize_prompt_filters(parsed)
 
@@ -754,8 +881,10 @@ def generate_athena_query_from_prompt(req: AthenaPromptRequest) -> dict[str, Any
         raise HTTPException(status_code=400, detail="Prompt is required.")
 
     filters = _filters_from_prompt(prompt)
-    query_request = PipelineRunRequest(**filters)
-    qualification_query = _build_qualification_sql_from_request(query_request)
+    qualification_query = _qualification_sql_from_prompt(prompt)
+    if not qualification_query:
+        query_request = PipelineRunRequest(**filters)
+        qualification_query = _build_qualification_sql_from_request(query_request)
 
     return {
         "model": "gpt-4o-mini",
