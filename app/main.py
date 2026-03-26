@@ -72,6 +72,57 @@ def _normalize_borrower_id(value: Any) -> str:
     return raw
 
 
+def _find_first_matching_column(df: pd.DataFrame, candidates: list[str]) -> str | None:
+    normalized_to_actual = {
+        re.sub(r"[^a-z0-9]+", "", str(col).strip().lower()): str(col)
+        for col in df.columns
+    }
+    for candidate in candidates:
+        key = re.sub(r"[^a-z0-9]+", "", candidate.strip().lower())
+        if key in normalized_to_actual:
+            return normalized_to_actual[key]
+    return None
+
+
+def _normalize_output_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    normalized = df.copy()
+    rename_map: dict[str, str] = {}
+
+    borrower_id_col = _find_first_matching_column(
+        normalized,
+        ["borrower_id", "borrowerid", "custid", "customer_id", "customerid", "external_id", "externalid"],
+    )
+    if borrower_id_col and borrower_id_col != "borrower_id":
+        rename_map[borrower_id_col] = "borrower_id"
+
+    full_name_col = _find_first_matching_column(normalized, ["full_name", "fullname", "name", "customer_name"])
+    if full_name_col and full_name_col != "full_name":
+        rename_map[full_name_col] = "full_name"
+
+    if rename_map:
+        normalized = normalized.rename(columns=rename_map)
+
+    if "borrower_id" in normalized.columns:
+        normalized["borrower_id"] = normalized["borrower_id"].map(_normalize_borrower_id)
+
+    if "full_name" in normalized.columns and "first_name" not in normalized.columns:
+        split_name = normalized["full_name"].astype(str).str.split(" ", n=1, expand=True)
+        if split_name.shape[1] >= 1:
+            normalized["first_name"] = split_name.iloc[:, 0].fillna("")
+        else:
+            normalized["first_name"] = ""
+        if split_name.shape[1] >= 2:
+            normalized["last_name"] = split_name.iloc[:, 1].fillna("")
+        else:
+            normalized["last_name"] = ""
+
+    return normalized
+
+
+def _can_enrich_dashboard_output(df: pd.DataFrame) -> bool:
+    return "borrower_id" in df.columns
+
+
 def _categorize_marketing(rate_spread: float) -> str:
     if rate_spread > 1.25:
         return "Immediate Action"
@@ -101,11 +152,18 @@ def _list_generated_output_csv_objects(s3_client: Any) -> list[dict[str, Any]]:
     ]
 
 
+def _last_modified_sort_key(obj: dict[str, Any]) -> datetime:
+    last_modified = obj.get("LastModified")
+    if isinstance(last_modified, datetime):
+        return last_modified
+    return datetime.min.replace(tzinfo=timezone.utc)
+
+
 def _pick_latest_generated_output_key(csv_objects: list[dict[str, Any]]) -> str:
     if not csv_objects:
         raise FileNotFoundError(f"No pipeline output CSV found in s3://{S3_BUCKET_NAME}/output/ or output/athena/")
 
-    ordered_csv = sorted(csv_objects, key=lambda obj: obj.get("LastModified"), reverse=True)
+    ordered_csv = sorted(csv_objects, key=_last_modified_sort_key, reverse=True)
     non_fallback = [obj for obj in ordered_csv if "fallback-" not in obj.get("Key", "")]
     fallback = [obj for obj in ordered_csv if "fallback-" in obj.get("Key", "")]
 
@@ -436,43 +494,44 @@ def _run_pipeline_in_background() -> None:
 def _load_from_cloud_pipeline_output() -> tuple[pd.DataFrame, str]:
     s3_client = boto3.client("s3", region_name=AWS_REGION)
     csv_objects = _list_generated_output_csv_objects(s3_client)
-    ordered_csv = sorted(csv_objects, key=lambda obj: obj.get("LastModified"), reverse=True)
+    ordered_csv = sorted(csv_objects, key=_last_modified_sort_key, reverse=True)
     non_fallback = [obj for obj in ordered_csv if "fallback-" not in obj.get("Key", "")]
     fallback = [obj for obj in ordered_csv if "fallback-" in obj.get("Key", "")]
 
-    candidates = non_fallback[:1] if non_fallback else fallback[:1]
+    candidates = non_fallback + fallback
     if not candidates:
         raise FileNotFoundError(f"No pipeline output CSV found in s3://{S3_BUCKET_NAME}/output/ or output/athena/")
 
     df = pd.DataFrame()
     source_key = ""
+    skipped_candidates: list[str] = []
     for obj in candidates:
         key = obj["Key"]
-        s3_obj = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=key)
-        candidate = pd.read_csv(BytesIO(s3_obj["Body"].read()))
+        try:
+            s3_obj = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=key)
+            candidate = pd.read_csv(BytesIO(s3_obj["Body"].read()))
+            candidate = _normalize_output_dataframe(candidate)
+        except Exception as exc:
+            skipped_candidates.append(f"{key} ({exc.__class__.__name__})")
+            continue
+
+        if not _can_enrich_dashboard_output(candidate):
+            skipped_candidates.append(f"{key} (missing borrower_id)")
+            continue
+
         source_key = f"s3://{S3_BUCKET_NAME}/{key}"
         df = candidate
         break
 
-    if df.empty and not non_fallback:
-        df = _derive_from_cloud_raw_data(s3_client)
-        source_key = f"s3://{S3_BUCKET_NAME}/{S3_RAW_PREFIX} (derived)"
-
-    rename_map = {
-        "name": "full_name",
-    }
-    df = df.rename(columns=rename_map)
-
-    if "full_name" in df.columns and "first_name" not in df.columns:
-        split_name = df["full_name"].astype(str).str.split(" ", n=1, expand=True)
-        if split_name.shape[1] >= 1:
-            df["first_name"] = split_name.iloc[:, 0].fillna("")
-        else:
-            df["first_name"] = ""
-        if split_name.shape[1] >= 2:
-            df["last_name"] = split_name.iloc[:, 1].fillna("")
-        else:
-            df["last_name"] = ""
+    if df.empty:
+        try:
+            df = _derive_from_cloud_raw_data(s3_client)
+            source_key = f"s3://{S3_BUCKET_NAME}/{S3_RAW_PREFIX} (derived)"
+        except Exception as exc:
+            detail = ", ".join(skipped_candidates[:5]) if skipped_candidates else "no readable CSV candidates"
+            raise FileNotFoundError(
+                f"No compatible dashboard CSV found; skipped {detail}. Raw-data fallback failed: {exc.__class__.__name__}: {exc}"
+            ) from exc
 
     required_fields = {
         "full_name",
