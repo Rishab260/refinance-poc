@@ -5,3 +5,6 @@ jinja2
 boto3
 s3fs
 openai
+langchain
+langchain-aws
+langchain-core

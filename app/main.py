@@ -848,6 +848,12 @@ class AthenaPromptRequest(BaseModel):
     prompt: str
 
 
+class BedrockAgentQueryRequest(BaseModel):
+    question: str
+    max_iterations: int | None = None
+    run_on_athena: bool = False
+
+
 def _safe_float(value: Any, minimum: float, maximum: float) -> float | None:
     if value is None or value == "":
         return None
@@ -1264,3 +1270,100 @@ def query_dashboard(
         source = None
 
     return build_payload(filtered, source)
+
+
+# ---------------------------------------------------------------------------
+# Bedrock + LangChain NL-to-SQL agentic endpoint
+# ---------------------------------------------------------------------------
+
+@app.get("/api/schema")
+def get_schema() -> dict[str, Any]:
+    """Return the database schema context used by the NL-to-SQL agent.
+
+    Useful for debugging or for building custom frontend prompts.
+    """
+    from app.nl2sql_agent import build_schema_context, _load_table_schemas  # noqa: PLC0415
+
+    return {
+        "schema_context": build_schema_context(),
+        "tables": _load_table_schemas(),
+    }
+
+
+@app.post("/api/athena/agent-query-v2")
+def bedrock_agent_query(req: BedrockAgentQueryRequest) -> dict[str, Any]:
+    """Agentic NL-to-SQL endpoint backed by AWS Bedrock (Claude) + LangChain.
+
+    Implements an **Answerability → Generate → Critique → Execute → Refine** loop:
+      0. Answerability – a pre-flight LLM call checks whether the question can
+                          be answered from the available schema.  If not, the
+                          response contains ``answerability.answerable=false``,
+                          a plain-English ``reasoning`` and a ``missing_data``
+                          list — no SQL is generated.
+      1. Generator  – Claude drafts an Athena SQL query from the natural-language
+                      question, embedding full table schema context.
+      2. Critic     – a second Claude call reviews the SQL for schema correctness,
+                      Athena/Presto syntax, and whether it answers the question.
+      3. Executor   – the SQL is executed against Athena; errors are fed back.
+      4. Refiner    – if the critic or Athena flagged issues the generator
+                      rewrites the SQL with all feedback embedded in the prompt.
+      Steps 2-4 repeat up to ``max_iterations`` times (default 3).
+
+    Request body:
+      ``question``        – natural-language question (required).
+      ``max_iterations``  – override the default iteration cap (optional, 1-5).
+      ``run_on_athena``   – if true, execute the final approved SQL on Athena and
+                            return the S3 result path (optional, default false).
+
+    Response includes the final SQL, ``answerability`` object (answerable,
+    reasoning, missing_data), per-iteration trace, model used, and whether the
+    critic approved the query.
+
+    Falls back automatically to OpenAI GPT-4o when Bedrock is unavailable.
+    """
+    from app.nl2sql_agent import run_nl2sql_agent  # noqa: PLC0415
+
+    question = (req.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="question is required.")
+
+    max_iter = req.max_iterations
+    if max_iter is not None:
+        max_iter = max(1, min(5, max_iter))
+
+    try:
+        if max_iter is not None:
+            from app.nl2sql_agent import run_bedrock_nl2sql_agent, run_nl2sql_agent as _run  # noqa: PLC0415
+
+            try:
+                from app.nl2sql_agent import run_bedrock_nl2sql_agent  # noqa: PLC0415
+                result = run_bedrock_nl2sql_agent(question, max_iterations=max_iter)
+            except Exception:
+                result = _run(question)
+        else:
+            result = run_nl2sql_agent(question)
+    except Exception as exc:
+        logging.exception("Bedrock NL2SQL agent error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    response: dict[str, Any] = result.to_dict()
+
+    # Optionally execute the generated SQL on Athena
+    if req.run_on_athena and result.sql:
+        if not _is_valid_qualification_sql(result.sql):
+            response["athena_error"] = "Generated SQL did not pass safety check."
+        else:
+            try:
+                athena_client = boto3.client("athena", region_name=AWS_REGION)
+                qid = execute_athena_query(
+                    athena_client,
+                    result.sql,
+                    GLUE_DATABASE_NAME,
+                    FINAL_OUTPUT_LOCATION,
+                )
+                response["query_execution_id"] = qid
+                response["s3_path"] = f"{FINAL_OUTPUT_LOCATION}{qid}.csv"
+            except Exception as exc:
+                response["athena_error"] = str(exc)
+
+    return response

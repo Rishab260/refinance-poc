@@ -241,27 +241,73 @@
       </div>
     </section>
 
-    <aside class="hidden xl:block fixed right-6 top-6 w-96 bg-white border border-slate-200 rounded-xl p-4 shadow-sm z-40">
-      <div class="flex items-center justify-between cursor-pointer" id="agentHeader">
-        <h2 class="font-semibold">AI Agent</h2>
+    <aside class="hidden xl:flex xl:flex-col fixed right-6 top-6 w-96 bg-white border border-slate-200 rounded-xl p-4 shadow-sm z-40" style="max-height: calc(100vh - 3rem);">
+      <div class="flex items-center justify-between cursor-pointer flex-shrink-0" id="agentHeader">
+        <div class="flex items-center gap-2">
+          <h2 class="font-semibold">AI Agent</h2>
+          <span class="text-xs bg-amber-100 text-amber-800 font-medium px-2 py-0.5 rounded-full">Bedrock</span>
+        </div>
         <span id="agentToggleIcon" class="text-slate-600 transition-transform">▼</span>
       </div>
-      <div id="agentContent" class="mt-2">
-        <p class="text-xs text-slate-600 mb-3">Prompt to Athena SQL using available filters only.</p>
-        <label for="agentPromptInput" class="text-sm font-medium">Prompt</label>
-        <textarea id="agentPromptInput" class="mt-1 w-full rounded-md border-slate-300 text-sm h-28" placeholder="Example: show hot leads with LTV under 75 and spread above 1"></textarea>
+      <div id="agentContent" class="mt-2 overflow-y-auto flex-1 min-h-0 pr-1">
+        <p class="text-xs text-slate-500 mb-3">Natural language → Athena SQL via AWS Bedrock (Answerability → Generate → Critique → Execute → Refine).</p>
+        <label for="agentPromptInput" class="text-sm font-medium">Question</label>
+        <textarea id="agentPromptInput" class="mt-1 w-full rounded-md border-slate-300 text-sm h-24" placeholder="e.g. Top 10 hot leads in California with LTV under 75% who opened emails recently"></textarea>
+        <div class="mt-1 flex items-center gap-2">
+          <label class="text-xs text-slate-500">Max iterations</label>
+          <select id="agentMaxIter" class="text-xs rounded border-slate-300">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+          </select>
+          <label class="text-xs text-slate-500 ml-auto flex items-center gap-1">
+            <input type="checkbox" id="agentRunAthena" class="rounded"> Run on Athena
+          </label>
+        </div>
         <div class="mt-3 flex items-center gap-2">
-          <button id="agentGenerateBtn" class="rounded-md bg-slate-700 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">Generate Query</button>
+          <button id="agentGenerateBtn" class="rounded-md bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700">Generate SQL</button>
           <button id="agentApplyFiltersBtn" class="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50" disabled>Apply & Run</button>
         </div>
-        <p id="agentStatus" class="text-xs text-slate-600 mt-2">Ready.</p>
-        <div class="mt-3">
-          <p class="text-xs font-medium text-slate-700 mb-1">Detected Filters</p>
-          <pre id="agentFiltersOutput" class="text-xs bg-slate-50 border border-slate-200 rounded-md p-2 h-20 overflow-auto">{}</pre>
+        <!-- Status bar -->
+        <div id="agentStatusBar" class="mt-2 flex items-center gap-2">
+          <span id="agentStatus" class="text-xs text-slate-600">Ready.</span>
+          <span id="agentApprovedBadge" class="hidden text-xs font-medium px-2 py-0.5 rounded-full"></span>
+          <span id="agentIterBadge" class="hidden text-xs text-slate-500"></span>
         </div>
-        <div class="mt-3">
-          <p class="text-xs font-medium text-slate-700 mb-1">Generated Athena SQL</p>
-          <pre id="agentSqlOutput" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 h-56 overflow-auto">-- Query will appear here</pre>
+        <!-- Answerability panel -->
+        <div id="agentAnswerabilityPanel" class="mt-3 hidden rounded-lg border p-3 text-xs">
+          <div class="flex items-start gap-2">
+            <span id="agentAnswerabilityIcon" class="text-base leading-none mt-0.5"></span>
+            <div>
+              <p id="agentAnswerabilityTitle" class="font-semibold mb-1"></p>
+              <p id="agentAnswerabilityReasoning" class="leading-relaxed"></p>
+              <div id="agentMissingDataSection" class="hidden mt-2">
+                <p class="font-medium mb-1">Missing data:</p>
+                <ul id="agentMissingDataList" class="list-disc ml-4 space-y-0.5"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Generated SQL -->
+        <div id="agentSqlBlock" class="mt-3">
+          <div class="flex items-center justify-between mb-1">
+            <p class="text-xs font-medium text-slate-700">Generated Athena SQL</p>
+            <button id="agentCopyBtn" class="text-xs text-slate-400 hover:text-slate-700" title="Copy SQL">copy</button>
+          </div>
+          <pre id="agentSqlOutput" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 h-48 overflow-auto">-- SQL will appear here</pre>
+        </div>
+        <!-- Critique trace accordion -->
+        <details id="agentTraceDetails" class="mt-3 hidden">
+          <summary class="text-xs font-medium text-slate-600 cursor-pointer">Critique trace ▸</summary>
+          <div id="agentTraceOutput" class="mt-1 space-y-2"></div>
+        </details>
+        <!-- Athena result path -->
+        <div id="agentAthenaResult" class="mt-3 hidden">
+          <p class="text-xs font-medium text-slate-700 mb-1">Athena Result</p>
+          <p id="agentAthenaPath" class="text-xs text-slate-500 break-all"></p>
+        </div>
+        <div id="agentModelLine" class="mt-2 hidden">
+          <p class="text-xs text-slate-400">Model: <span id="agentModelName"></span></p>
         </div>
       </div>
     </aside>
@@ -476,7 +522,6 @@
     const agentGenerateBtn = document.getElementById("agentGenerateBtn");
     const agentApplyFiltersBtn = document.getElementById("agentApplyFiltersBtn");
     const agentStatus = document.getElementById("agentStatus");
-    const agentFiltersOutput = document.getElementById("agentFiltersOutput");
     const agentSqlOutput = document.getElementById("agentSqlOutput");
     let agentExpanded = true;
 
@@ -545,7 +590,6 @@
     });
 
     const chartStore = {};
-    let lastAgentFilters = null;
     let lastAgentQualificationQuery = "";
 
     function fmtCurrency(value) {
@@ -937,39 +981,193 @@
       scheduleRefresh();
     }
 
+    // --- Bedrock agent UI helpers ---
+    const agentApprovedBadge       = document.getElementById("agentApprovedBadge");
+    const agentIterBadge           = document.getElementById("agentIterBadge");
+    const agentCopyBtn             = document.getElementById("agentCopyBtn");
+    const agentTraceDetails        = document.getElementById("agentTraceDetails");
+    const agentTraceOutput         = document.getElementById("agentTraceOutput");
+    const agentAthenaResult        = document.getElementById("agentAthenaResult");
+    const agentAthenaPath          = document.getElementById("agentAthenaPath");
+    const agentModelLine           = document.getElementById("agentModelLine");
+    const agentModelName           = document.getElementById("agentModelName");
+    const agentMaxIter             = document.getElementById("agentMaxIter");
+    const agentRunAthena           = document.getElementById("agentRunAthena");
+    const agentAnswerabilityPanel  = document.getElementById("agentAnswerabilityPanel");
+    const agentAnswerabilityIcon   = document.getElementById("agentAnswerabilityIcon");
+    const agentAnswerabilityTitle  = document.getElementById("agentAnswerabilityTitle");
+    const agentAnswerabilityReas   = document.getElementById("agentAnswerabilityReasoning");
+    const agentMissingSection      = document.getElementById("agentMissingDataSection");
+    const agentMissingList         = document.getElementById("agentMissingDataList");
+    const agentSqlBlock            = document.getElementById("agentSqlBlock");
+
+    function _renderAnswerability(ans) {
+      if (!ans || agentAnswerabilityPanel === null) return;
+      agentAnswerabilityPanel.classList.remove(
+        "hidden", "border-emerald-200", "bg-emerald-50", "border-rose-200", "bg-rose-50"
+      );
+      agentAnswerabilityTitle.className = "font-semibold mb-1";
+      agentAnswerabilityReas.className  = "leading-relaxed";
+      agentMissingSection.classList.add("hidden");
+
+      if (ans.answerable) {
+        agentAnswerabilityPanel.classList.add("border-emerald-200", "bg-emerald-50");
+        agentAnswerabilityIcon.textContent = "✅";
+        agentAnswerabilityTitle.classList.add("text-emerald-800");
+        agentAnswerabilityTitle.textContent = "Question is answerable from the available data";
+        agentAnswerabilityReas.classList.add("text-emerald-700");
+        agentAnswerabilityReas.textContent = ans.reasoning || "";
+      } else {
+        agentAnswerabilityPanel.classList.add("border-rose-200", "bg-rose-50");
+        agentAnswerabilityIcon.textContent = "❌";
+        agentAnswerabilityTitle.classList.add("text-rose-800");
+        agentAnswerabilityTitle.textContent = "Question cannot be answered from the available data";
+        agentAnswerabilityReas.classList.add("text-rose-700");
+        agentAnswerabilityReas.textContent = ans.reasoning || "";
+        const missing = ans.missing_data || [];
+        if (missing.length) {
+          agentMissingList.innerHTML = missing
+            .map((m) => `<li class="text-rose-600">${m}</li>`).join("");
+          agentMissingSection.querySelector("p").className = "font-medium mb-1 text-rose-700";
+          agentMissingSection.classList.remove("hidden");
+        }
+      }
+    }
+
+    if (agentCopyBtn) {
+      agentCopyBtn.addEventListener("click", () => {
+        const sql = agentSqlOutput ? agentSqlOutput.textContent : "";
+        if (sql && sql !== "-- SQL will appear here") {
+          navigator.clipboard.writeText(sql).then(() => {
+            agentCopyBtn.textContent = "copied!";
+            setTimeout(() => { agentCopyBtn.textContent = "copy"; }, 1500);
+          });
+        }
+      });
+    }
+
+    function _renderTrace(trace) {
+      if (!agentTraceOutput) return;
+      agentTraceOutput.innerHTML = "";
+      (trace || []).forEach((t) => {
+        const colour = t.approved ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50";
+        const badge  = t.approved ? "✓ approved" : "✗ not approved";
+        const issues = (t.issues || []).map((i) => `<li class="ml-3 list-disc">${i}</li>`).join("");
+        const suggestions = (t.suggestions || []).map((s) => `<li class="ml-3 list-disc text-slate-500">${s}</li>`).join("");
+        const html = `
+          <div class="text-xs border rounded-md p-2">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="font-medium">Iteration ${t.iteration}</span>
+              <span class="${colour} rounded-full px-2 py-0.5 text-xs font-medium">${badge}</span>
+            </div>
+            ${issues ? `<ul class="text-rose-700 mb-1">${issues}</ul>` : ""}
+            ${suggestions ? `<ul class="text-slate-500">${suggestions}</ul>` : ""}
+          </div>`;
+        agentTraceOutput.insertAdjacentHTML("beforeend", html);
+      });
+    }
+
     async function generateQueryFromPrompt() {
       if (!agentPromptInput || !agentGenerateBtn) return;
 
-      const prompt = agentPromptInput.value.trim();
-      if (!prompt) {
-        agentStatus.textContent = "Enter a prompt first.";
+      const question = agentPromptInput.value.trim();
+      if (!question) {
+        agentStatus.textContent = "Enter a question first.";
         return;
       }
 
       agentGenerateBtn.disabled = true;
       agentApplyFiltersBtn.disabled = true;
-      agentStatus.textContent = "Generating Athena query...";
+      agentStatus.textContent = "Running Bedrock agent (Answerability → Generate → Critique → Execute)…";
+      if (agentApprovedBadge) agentApprovedBadge.classList.add("hidden");
+      if (agentIterBadge) agentIterBadge.classList.add("hidden");
+      if (agentAnswerabilityPanel) agentAnswerabilityPanel.classList.add("hidden");
+      if (agentTraceDetails) agentTraceDetails.classList.add("hidden");
+      if (agentAthenaResult) agentAthenaResult.classList.add("hidden");
+      if (agentModelLine) agentModelLine.classList.add("hidden");
 
       try {
-        const response = await fetch("/api/athena/agent-query", {
+        const payload = {
+          question,
+          max_iterations: parseInt(agentMaxIter ? agentMaxIter.value : "3", 10),
+          run_on_athena: agentRunAthena ? agentRunAthena.checked : false,
+        };
+        const response = await fetch("/api/athena/agent-query-v2", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt }),
+          body: JSON.stringify(payload),
         });
 
         const body = await response.json().catch(() => ({}));
         if (!response.ok) {
-          const message = body.detail || "Unable to generate query.";
-          agentStatus.textContent = `Error: ${message}`;
+          agentStatus.textContent = `Error: ${body.detail || "Unable to generate query."}`;
           return;
         }
 
-        lastAgentFilters = body.filters || {};
-        lastAgentQualificationQuery = body.qualification_query || "";
-        agentFiltersOutput.textContent = JSON.stringify(lastAgentFilters, null, 2);
-        agentSqlOutput.textContent = body.qualification_query || "-- No query returned";
-        agentStatus.textContent = `Generated with ${body.model || "gpt-4o-mini"}.`;
-        agentApplyFiltersBtn.disabled = false;
+        // --- Answerability ---
+        const ans = body.answerability || null;
+        _renderAnswerability(ans);
+        const isAnswerable = !ans || ans.answerable !== false;
+
+        if (!isAnswerable) {
+          // Question cannot be answered — hide SQL block, show only the panel
+          if (agentSqlBlock) agentSqlBlock.classList.add("hidden");
+          agentStatus.textContent = "Question cannot be answered from the available data.";
+          if (agentApprovedBadge) {
+            agentApprovedBadge.classList.remove("hidden", "bg-emerald-100", "text-emerald-800", "bg-rose-100", "text-rose-800");
+            agentApprovedBadge.classList.add("bg-rose-100", "text-rose-800");
+            agentApprovedBadge.textContent = "✗ not answerable";
+          }
+          agentApplyFiltersBtn.disabled = true;
+          return;
+        }
+
+        // Question is answerable — show SQL block
+        if (agentSqlBlock) agentSqlBlock.classList.remove("hidden");
+
+        // Populate SQL output
+        lastAgentQualificationQuery = body.sql || "";
+        agentSqlOutput.textContent = body.sql || "-- No query returned";
+
+        // Status
+        const approved = body.approved === true;
+        agentStatus.textContent = approved ? "Query approved by critic." : `Query not approved after ${body.iterations} iteration(s).`;
+
+        // Badges
+        if (agentApprovedBadge) {
+          agentApprovedBadge.classList.remove("hidden", "bg-emerald-100", "text-emerald-800", "bg-rose-100", "text-rose-800");
+          if (approved) {
+            agentApprovedBadge.classList.add("bg-emerald-100", "text-emerald-800");
+            agentApprovedBadge.textContent = "✓ approved";
+          } else {
+            agentApprovedBadge.classList.add("bg-rose-100", "text-rose-800");
+            agentApprovedBadge.textContent = "✗ needs review";
+          }
+        }
+        if (agentIterBadge) {
+          agentIterBadge.classList.remove("hidden");
+          agentIterBadge.textContent = `${body.iterations} iter`;
+        }
+
+        // Model name
+        if (agentModelLine && agentModelName) {
+          agentModelName.textContent = body.model || "";
+          agentModelLine.classList.remove("hidden");
+        }
+
+        // Trace accordion
+        if (body.trace && body.trace.length) {
+          _renderTrace(body.trace);
+          if (agentTraceDetails) agentTraceDetails.classList.remove("hidden");
+        }
+
+        // Athena result path
+        if (body.s3_path && agentAthenaResult && agentAthenaPath) {
+          agentAthenaPath.textContent = body.s3_path;
+          agentAthenaResult.classList.remove("hidden");
+        }
+
+        agentApplyFiltersBtn.disabled = !lastAgentQualificationQuery;
       } catch (_) {
         agentStatus.textContent = "Error: unable to reach server.";
       } finally {
@@ -1150,22 +1348,16 @@
     }
     if (agentApplyFiltersBtn) {
       agentApplyFiltersBtn.addEventListener("click", async () => {
-        const hasFilters = lastAgentFilters && Object.keys(lastAgentFilters).length;
-        if (hasFilters) {
-          applyAgentFilters(lastAgentFilters);
-          agentStatus.textContent = "Filters applied. Running Athena query...";
-        } else {
-          agentStatus.textContent = "No filters detected. Running Athena query from prompt...";
-        }
+        if (!lastAgentQualificationQuery) return;
         agentApplyFiltersBtn.disabled = true;
-
+        agentStatus.textContent = "Running Athena query from generated SQL…";
         try {
           const success = await triggerAthenaQuery({ qualificationQueryOverride: lastAgentQualificationQuery });
           agentStatus.textContent = success
-            ? "Athena query completed from prompt."
-            : "Athena query failed from prompt.";
+            ? "Athena query completed."
+            : "Athena query failed.";
         } catch (_) {
-          agentStatus.textContent = "Athena query failed from prompt.";
+          agentStatus.textContent = "Athena query failed.";
         } finally {
           agentApplyFiltersBtn.disabled = false;
         }
